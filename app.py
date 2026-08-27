@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, Response
 from markupsafe import Markup, escape
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import inspect, text
@@ -13,6 +13,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from io import BytesIO
 import os, re, random, uuid, json, hashlib, subprocess, tempfile, shutil, platform, unicodedata
+import requests
 import fitz
 from PIL import Image, ImageDraw
 
@@ -36,6 +37,9 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('COOKIE_SECURE', '0') == '1'
 app.config['PERMANENT_SESSION_LIFETIME'] = 60 * 60 * 12
 app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_UPLOAD_MB', '50')) * 1024 * 1024
+DEFAULT_ADMIN_USERNAME = os.environ.get('DEFAULT_ADMIN_USERNAME', 'admin').strip() or 'admin'
+DEFAULT_ADMIN_PASSWORD = os.environ.get('DEFAULT_ADMIN_PASSWORD', '123456')
+DEFAULT_ADMIN_NAME = os.environ.get('DEFAULT_ADMIN_NAME', 'Quản trị hệ thống').strip() or 'Quản trị hệ thống'
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///lop_toan_online_v6.db').strip()
 if database_url.startswith('postgres://'):
     database_url = 'postgresql+psycopg://' + database_url[len('postgres://'):]
@@ -45,8 +49,13 @@ app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['STATIC_UPLOAD_FOLDER'] = 'static/uploads'
+app.config['LESSON_UPLOAD_FOLDER'] = 'uploads/lessons'
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '').rstrip('/')
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '').strip()
+SUPABASE_STORAGE_BUCKET = os.environ.get('SUPABASE_STORAGE_BUCKET', 'lop-toan-media').strip() or 'lop-toan-media'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['STATIC_UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['LESSON_UPLOAD_FOLDER'], exist_ok=True)
 db = SQLAlchemy(app)
 
 oauth = OAuth(app)
@@ -64,6 +73,8 @@ class Classroom(db.Model):
     name = db.Column(db.String(80), unique=True, nullable=False)
     grade = db.Column(db.String(20), default='')
     description = db.Column(db.Text, default='')
+    teacher_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    subject = db.Column(db.String(30), default='Toán')
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -74,6 +85,12 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False)
     classroom_id = db.Column(db.Integer, db.ForeignKey('classroom.id'))
     avatar = db.Column(db.String(255), default='')
+    perm_classes = db.Column(db.Boolean, default=True)
+    perm_students = db.Column(db.Boolean, default=True)
+    perm_question_bank = db.Column(db.Boolean, default=True)
+    perm_assignments = db.Column(db.Boolean, default=True)
+    perm_lessons = db.Column(db.Boolean, default=True)
+    perm_grades = db.Column(db.Boolean, default=True)
 
 class SiteSetting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -85,9 +102,14 @@ class SiteSetting(db.Model):
 class Lesson(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
+    subject = db.Column(db.String(30), default='Toán')
     description = db.Column(db.Text, default='')
     content = db.Column(db.Text, default='')
     resource_url = db.Column(db.String(500), default='')
+    file_name = db.Column(db.String(255), default='')
+    file_path = db.Column(db.String(500), default='')
+    file_mime = db.Column(db.String(120), default='')
+    preview_pdf_path = db.Column(db.String(500), default='')
     classroom_id = db.Column(db.Integer, db.ForeignKey('classroom.id'), nullable=False)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     is_published = db.Column(db.Boolean, default=False)
@@ -96,10 +118,11 @@ class Lesson(db.Model):
 class BankQuestion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    subject = db.Column(db.String(30), default='Toán')
     grade = db.Column(db.String(20), default='')
     topic = db.Column(db.String(120), default='')
     difficulty = db.Column(db.String(20), default='Trung bình')
-    domain = db.Column(db.String(20), default='Đại số')
+    domain = db.Column(db.String(80), default='Đại số')
     qtype = db.Column(db.String(20), nullable=False)
     content = db.Column(db.Text, nullable=False)
     option_a = db.Column(db.Text, default='')
@@ -115,6 +138,7 @@ class Assignment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, default='')
+    subject = db.Column(db.String(30), default='Toán')
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     duration_minutes = db.Column(db.Integer, default=45)
     starts_at = db.Column(db.DateTime, nullable=True)
@@ -123,6 +147,7 @@ class Assignment(db.Model):
     shuffle_questions = db.Column(db.Boolean, default=False)
     shuffle_options = db.Column(db.Boolean, default=False)
     show_result = db.Column(db.Boolean, default=True)
+    show_answers = db.Column(db.Boolean, default=False)
     allow_retake = db.Column(db.Boolean, default=False)
     is_published = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -149,6 +174,8 @@ class Submission(db.Model):
     auto_score = db.Column(db.Float, default=0.0)
     manual_score = db.Column(db.Float, default=0.0)
     max_score = db.Column(db.Float, default=10.0)
+    correct_count = db.Column(db.Integer, default=0)
+    objective_count = db.Column(db.Integer, default=0)
     @property
     def total_score(self):
         return round((self.auto_score or 0) + (self.manual_score or 0), 2)
@@ -167,7 +194,42 @@ def me():
     return db.session.get(User, uid) if uid else None
 
 def teacher_only():
-    u = me(); return bool(u and u.role == 'teacher')
+    u = me(); return bool(u and u.role in ('teacher', 'admin'))
+
+def admin_only():
+    u = me(); return bool(u and u.role == 'admin')
+
+def has_perm(code):
+    u = me()
+    if not u:
+        return False
+    if u.role == 'admin':
+        return True
+    if u.role != 'teacher':
+        return False
+    mapping = {
+        'classes': 'perm_classes',
+        'students': 'perm_students',
+        'question_bank': 'perm_question_bank',
+        'assignments': 'perm_assignments',
+        'lessons': 'perm_lessons',
+        'grades': 'perm_grades',
+    }
+    field = mapping.get(code)
+    return bool(field and getattr(u, field, False))
+
+def require_perm(code):
+    return bool(teacher_only() and has_perm(code))
+
+def accessible_classes():
+    u = me()
+    if not u: return []
+    q = Classroom.query
+    if u.role == 'teacher': q = q.filter(Classroom.teacher_id == u.id)
+    return q.order_by(Classroom.name).all()
+
+def accessible_class_ids():
+    return [c.id for c in accessible_classes()]
 
 def student_only():
     u = me(); return bool(u and u.role == 'student')
@@ -179,7 +241,7 @@ def parse_dt(v):
 
 def my_setting():
     u = me()
-    if not u or u.role != 'teacher': return None
+    if not u or u.role not in ('teacher', 'admin'): return None
     s = SiteSetting.query.filter_by(owner_id=u.id).first()
     if not s:
         s = SiteSetting(owner_id=u.id, teacher_label=u.full_name)
@@ -238,6 +300,109 @@ def save_uploaded_image(f, prefix='q'):
     name = f'{prefix}_{uuid.uuid4().hex[:12]}{ext}'
     f.save(os.path.join(app.config['STATIC_UPLOAD_FOLDER'], name))
     return name
+
+
+LESSON_ALLOWED_EXTENSIONS = {'.ppt', '.pptx', '.pdf', '.doc', '.docx'}
+
+def lesson_file_allowed(filename):
+    return os.path.splitext(secure_filename(filename or ''))[1].lower() in LESSON_ALLOWED_EXTENSIONS
+
+def _supabase_storage_enabled():
+    return bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and SUPABASE_STORAGE_BUCKET)
+
+def _supabase_headers(content_type=None):
+    h = {
+        'Authorization': f'Bearer {SUPABASE_SERVICE_ROLE_KEY}',
+        'apikey': SUPABASE_SERVICE_ROLE_KEY,
+    }
+    if content_type:
+        h['Content-Type'] = content_type
+    return h
+
+def save_lesson_bytes(data, storage_name, content_type='application/octet-stream'):
+    """Lưu vào Supabase Storage khi cấu hình online; fallback local khi chạy máy cá nhân."""
+    storage_name = storage_name.replace('\\', '/').lstrip('/')
+    if _supabase_storage_enabled():
+        url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_STORAGE_BUCKET}/{storage_name}"
+        r = requests.post(url, headers={**_supabase_headers(content_type), 'x-upsert': 'true'}, data=data, timeout=60)
+        if r.status_code not in (200, 201):
+            raise RuntimeError(f'Supabase Storage upload lỗi {r.status_code}: {r.text[:250]}')
+        return 'supabase:' + storage_name
+    local_path = os.path.join(app.config['LESSON_UPLOAD_FOLDER'], storage_name.replace('/', '_'))
+    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+    with open(local_path, 'wb') as f:
+        f.write(data)
+    return 'local:' + local_path
+
+def read_lesson_bytes(stored_path):
+    if not stored_path:
+        return None
+    if stored_path.startswith('supabase:'):
+        key = stored_path[len('supabase:'):]
+        url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_STORAGE_BUCKET}/{key}"
+        r = requests.get(url, headers=_supabase_headers(), timeout=60)
+        if r.status_code != 200:
+            return None
+        return r.content
+    if stored_path.startswith('local:'):
+        p = stored_path[len('local:'):]
+        if os.path.exists(p):
+            with open(p, 'rb') as f:
+                return f.read()
+    return None
+
+def delete_lesson_storage(stored_path):
+    if not stored_path:
+        return
+    try:
+        if stored_path.startswith('supabase:') and _supabase_storage_enabled():
+            key = stored_path[len('supabase:'):]
+            url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_STORAGE_BUCKET}/{key}"
+            requests.delete(url, headers={**_supabase_headers(), 'Content-Type':'application/json'},
+                            json={'prefixes':[key]}, timeout=30)
+        elif stored_path.startswith('local:'):
+            p = stored_path[len('local:'):]
+            if os.path.exists(p):
+                os.remove(p)
+    except Exception:
+        pass
+
+def convert_office_to_pdf_bytes(original_bytes, filename):
+    """PowerPoint/Word -> PDF bằng LibreOffice. PDF đầu vào được giữ nguyên."""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext == '.pdf':
+        return original_bytes
+    if ext not in {'.ppt', '.pptx', '.doc', '.docx'}:
+        return None
+    with tempfile.TemporaryDirectory() as td:
+        src = os.path.join(td, secure_filename(filename) or ('lesson' + ext))
+        with open(src, 'wb') as f:
+            f.write(original_bytes)
+        try:
+            cp = subprocess.run(
+                ['libreoffice', '--headless', '--convert-to', 'pdf', '--outdir', td, src],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120, check=False
+            )
+        except Exception:
+            return None
+        expected = os.path.join(td, os.path.splitext(os.path.basename(src))[0] + '.pdf')
+        if not os.path.exists(expected):
+            return None
+        with open(expected, 'rb') as f:
+            return f.read()
+
+def lesson_access_allowed(lesson):
+    u = me()
+    if not u or not lesson:
+        return False
+    if u.role == 'admin':
+        return True
+    if u.role == 'teacher':
+        return lesson.created_by == u.id
+    if u.role == 'student':
+        return bool(lesson.is_published and lesson.classroom_id == u.classroom_id)
+    return False
+
 
 def xml_text(element):
     out = []
@@ -770,6 +935,43 @@ def parse_word(path):
                         source_qnum=qnum,source_kind=skind))
     return out
 
+
+def submission_review(submission, assignment):
+    """Trả về thống kê và chi tiết các câu tự chấm của một bài nộp."""
+    answers = Answer.query.filter_by(submission_id=submission.id).all()
+    rows = []
+    correct = 0
+    objective = 0
+    for ans in answers:
+        q = db.session.get(BankQuestion, ans.question_id)
+        if not q:
+            continue
+        is_objective = q.qtype in ('mcq', 'short')
+        is_correct = False
+        if q.qtype == 'mcq':
+            objective += 1
+            is_correct = (ans.answer_text or '').strip().upper() == (q.correct_answer or '').strip().upper()
+        elif q.qtype == 'short':
+            objective += 1
+            is_correct = normalize_short_answer(ans.answer_text) == normalize_short_answer(q.correct_answer)
+        if is_correct:
+            correct += 1
+
+        selected_text = ''
+        if q.qtype == 'mcq':
+            key = (ans.answer_text or '').strip().upper()
+            selected_text = {
+                'A': q.option_a, 'B': q.option_b, 'C': q.option_c, 'D': q.option_d
+            }.get(key, '')
+        rows.append({
+            'answer': ans,
+            'question': q,
+            'is_objective': is_objective,
+            'is_correct': is_correct,
+            'selected_text': selected_text,
+        })
+    return correct, objective, rows
+
 def normalize_short_answer(v):
     v = (v or '').strip().lower().replace('−','-').replace('–','-')
     v = re.sub(r'\s+', '', v)
@@ -831,15 +1033,16 @@ def repair_k12_fraction_equations():
 @app.context_processor
 def ctx():
     u = me(); setting = None
-    if u and u.role == 'teacher': setting = SiteSetting.query.filter_by(owner_id=u.id).first()
+    if u and u.role in ('teacher', 'admin'): setting = SiteSetting.query.filter_by(owner_id=u.id).first()
     return {'me': u, 'site_setting': setting, 'google_enabled': bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
-            'now': datetime.now(), 'assignment_class_names': assignment_class_names, 'assignment_status': assignment_status}
+            'now': datetime.now(), 'assignment_class_names': assignment_class_names, 'assignment_status': assignment_status,
+            'has_perm': has_perm}
 
 @app.route('/')
 def index():
     u = me()
     if not u: return redirect(url_for('login'))
-    return redirect(url_for('teacher_dashboard' if u.role == 'teacher' else 'student_dashboard'))
+    return redirect(url_for('teacher_dashboard' if u.role in ('teacher','admin') else 'student_dashboard'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -870,12 +1073,207 @@ def google_callback():
 def logout():
     session.clear(); return redirect(url_for('login'))
 
+
+@app.route('/admin/change-password', methods=['GET', 'POST'])
+def admin_change_password():
+    if not admin_only():
+        return redirect(url_for('login'))
+    u = me()
+    if request.method == 'POST':
+        current_password = request.form.get('current_password', '')
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        if not check_password_hash(u.password_hash, current_password):
+            flash('Mật khẩu hiện tại không đúng.', 'error')
+        elif len(new_password) < 8:
+            flash('Mật khẩu mới phải có ít nhất 8 ký tự.', 'error')
+        elif new_password != confirm_password:
+            flash('Xác nhận mật khẩu mới không khớp.', 'error')
+        elif check_password_hash(u.password_hash, new_password):
+            flash('Mật khẩu mới phải khác mật khẩu hiện tại.', 'error')
+        else:
+            u.password_hash = generate_password_hash(new_password)
+            db.session.commit()
+            flash('Đã đổi mật khẩu Admin thành công.', 'ok')
+            return redirect(url_for('admin_change_password'))
+
+    return render_template('admin_change_password.html')
+
+
+def ensure_teacher_permission_schema():
+    """Đảm bảo database cũ có đủ các cột phân quyền giáo viên."""
+    try:
+        insp = inspect(db.engine)
+        ucols = {c['name'] for c in insp.get_columns('user')}
+        permission_columns = [
+            'perm_classes',
+            'perm_students',
+            'perm_question_bank',
+            'perm_assignments',
+            'perm_lessons',
+            'perm_grades',
+        ]
+
+        for col in permission_columns:
+            if col not in ucols:
+                db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN {col} BOOLEAN'))
+                db.session.commit()
+
+        # Giáo viên/Admin cũ mặc định được giữ toàn bộ quyền để không mất chức năng.
+        for col in permission_columns:
+            db.session.execute(
+                text(f'UPDATE "user" SET {col}=1 WHERE role IN (:teacher_role, :admin_role) AND ({col} IS NULL)'),
+                {'teacher_role': 'teacher', 'admin_role': 'admin'}
+            )
+            db.session.execute(
+                text(f'UPDATE "user" SET {col}=0 WHERE role=:student_role AND ({col} IS NULL)'),
+                {'student_role': 'student'}
+            )
+        db.session.commit()
+        return True, ''
+    except Exception as e:
+        db.session.rollback()
+        return False, str(e)
+
+
+@app.route('/admin/teachers', methods=['GET', 'POST'])
+def admin_teachers():
+    if not admin_only():
+        return redirect(url_for('login'))
+
+    try:
+        ok_schema, schema_error = ensure_teacher_permission_schema()
+        if not ok_schema:
+            flash('Không thể cập nhật cấu trúc phân quyền giáo viên: ' + schema_error[:220], 'error')
+            return redirect(url_for('teacher_dashboard'))
+
+        if request.method == 'POST':
+            username = request.form.get('username','').strip()
+            full_name = request.form.get('full_name','').strip()
+            password = request.form.get('password','').strip()
+            email = request.form.get('email','').strip().lower() or None
+
+            if not username or not full_name or not password:
+                flash('Vui lòng nhập đủ họ tên, tài khoản và mật khẩu.', 'error')
+                return redirect(url_for('admin_teachers'))
+
+            if User.query.filter_by(username=username).first():
+                flash('Tên đăng nhập đã tồn tại.', 'error')
+                return redirect(url_for('admin_teachers'))
+
+            if email and User.query.filter(db.func.lower(User.email) == email).first():
+                flash('Email đã được sử dụng.', 'error')
+                return redirect(url_for('admin_teachers'))
+
+            teacher = User(
+                username=username,
+                full_name=full_name,
+                email=email,
+                password_hash=generate_password_hash(password),
+                role='teacher',
+                perm_classes=bool(request.form.get('perm_classes')),
+                perm_students=bool(request.form.get('perm_students')),
+                perm_question_bank=bool(request.form.get('perm_question_bank')),
+                perm_assignments=bool(request.form.get('perm_assignments')),
+                perm_lessons=bool(request.form.get('perm_lessons')),
+                perm_grades=bool(request.form.get('perm_grades')),
+            )
+
+            db.session.add(teacher)
+            db.session.flush()
+
+            # SiteSetting là tùy chọn; tránh lỗi nếu dữ liệu cũ đã có vấn đề
+            if not SiteSetting.query.filter_by(owner_id=teacher.id).first():
+                db.session.add(SiteSetting(
+                    owner_id=teacher.id,
+                    teacher_label=teacher.full_name
+                ))
+
+            db.session.commit()
+            flash('Đã tạo tài khoản giáo viên thành công.', 'ok')
+            return redirect(url_for('admin_teachers'))
+
+        teachers = User.query.filter(
+            User.role.in_(['teacher', 'admin'])
+        ).order_by(User.role, User.full_name).all()
+
+        return render_template('admin_teachers.html', teachers=teachers)
+
+    except Exception as e:
+        db.session.rollback()
+        # Không để Flask trả trang 500 trắng; hiện lỗi chẩn đoán ngay trên trang riêng.
+        return render_template(
+            'admin_teachers_error.html',
+            error_message=str(e)
+        ), 200
+
+
+@app.route('/admin/teacher/<int:user_id>/permissions', methods=['POST'])
+def admin_teacher_permissions(user_id):
+    if not admin_only():
+        return redirect(url_for('login'))
+
+    try:
+        ok_schema, schema_error = ensure_teacher_permission_schema()
+        if not ok_schema:
+            flash('Không thể cập nhật cấu trúc phân quyền giáo viên: ' + schema_error[:220], 'error')
+            return redirect(url_for('admin_teachers'))
+
+        u = db.session.get(User, user_id)
+        if not u or u.role != 'teacher':
+            flash('Không tìm thấy tài khoản giáo viên.', 'error')
+            return redirect(url_for('admin_teachers'))
+
+        u.perm_classes = bool(request.form.get('perm_classes'))
+        u.perm_students = bool(request.form.get('perm_students'))
+        u.perm_question_bank = bool(request.form.get('perm_question_bank'))
+        u.perm_assignments = bool(request.form.get('perm_assignments'))
+        u.perm_lessons = bool(request.form.get('perm_lessons'))
+        u.perm_grades = bool(request.form.get('perm_grades'))
+
+        db.session.commit()
+        flash(f'Đã cập nhật quyền cho giáo viên {u.full_name}.', 'ok')
+    except Exception as e:
+        db.session.rollback()
+        flash('Không thể lưu phân quyền: ' + str(e)[:220], 'error')
+
+    return redirect(url_for('admin_teachers'))
+
+
+@app.route('/admin/teacher/<int:user_id>/reset', methods=['POST'])
+def admin_reset_teacher(user_id):
+    if not admin_only(): return redirect(url_for('login'))
+    u = db.session.get(User, user_id)
+    if u and u.role == 'teacher':
+        pw = request.form.get('password','123456').strip() or '123456'
+        u.password_hash = generate_password_hash(pw); db.session.commit()
+        flash('Đã đổi mật khẩu giáo viên.', 'ok')
+    return redirect(url_for('admin_teachers'))
+
+@app.route('/admin/teacher/<int:user_id>/delete', methods=['POST'])
+def admin_delete_teacher(user_id):
+    if not admin_only(): return redirect(url_for('login'))
+    u = db.session.get(User, user_id)
+    if not u or u.role != 'teacher': return redirect(url_for('admin_teachers'))
+    has_data = (Classroom.query.filter_by(teacher_id=u.id).count() or
+                Assignment.query.filter_by(created_by=u.id).count() or
+                BankQuestion.query.filter_by(owner_id=u.id).count() or
+                Lesson.query.filter_by(created_by=u.id).count())
+    if has_data:
+        flash('Giáo viên này đã có lớp/đề/câu hỏi. Hãy chuyển hoặc xóa dữ liệu trước khi xóa tài khoản.', 'error')
+    else:
+        SiteSetting.query.filter_by(owner_id=u.id).delete(); db.session.delete(u); db.session.commit()
+        flash('Đã xóa tài khoản giáo viên.', 'ok')
+    return redirect(url_for('admin_teachers'))
+
 @app.route('/teacher')
 def teacher_dashboard():
     if not teacher_only(): return redirect(url_for('login'))
-    u = me(); classes = Classroom.query.order_by(Classroom.name).all()
+    u = me(); classes = accessible_classes()
     assignments = Assignment.query.filter_by(created_by=u.id).order_by(Assignment.id.desc()).all()
-    students = User.query.filter_by(role='student').all()
+    class_ids = [c.id for c in classes]
+    students = User.query.filter(User.role=='student', User.classroom_id.in_(class_ids)).all() if class_ids else []
     published = sum(a.is_published for a in assignments)
     submitted = Submission.query.join(Assignment, Submission.assignment_id == Assignment.id).filter(Assignment.created_by == u.id, Submission.submitted == True).count()
     lessons = Lesson.query.filter_by(created_by=u.id).count(); questions = BankQuestion.query.filter_by(owner_id=u.id).count()
@@ -900,16 +1298,19 @@ def settings():
 
 @app.route('/teacher/classes', methods=['GET', 'POST'])
 def classes():
+    if not require_perm('classes'):
+        flash('Tài khoản giáo viên chưa được Admin cấp quyền sử dụng chức năng này.', 'error')
+        return redirect(url_for('teacher_dashboard'))
     if not teacher_only(): return redirect(url_for('login'))
     if request.method == 'POST':
         name = request.form['name'].strip()
         if Classroom.query.filter_by(name=name).first(): flash('Lớp này đã tồn tại.', 'error')
         else:
-            db.session.add(Classroom(name=name, grade=request.form.get('grade', '').strip(), description=request.form.get('description', '').strip()))
+            db.session.add(Classroom(name=name, grade=request.form.get('grade', '').strip(), description=request.form.get('description', '').strip(), teacher_id=me().id, subject=request.form.get('subject','Toán').strip() or 'Toán'))
             db.session.commit(); flash('Đã tạo lớp.', 'ok')
         return redirect(url_for('classes'))
     rows = []
-    for c in Classroom.query.order_by(Classroom.name).all():
+    for c in accessible_classes():
         acount = AssignmentClassroom.query.filter_by(classroom_id=c.id).count()
         rows.append((c, User.query.filter_by(role='student', classroom_id=c.id).count(), acount))
     return render_template('classes.html', rows=rows)
@@ -933,17 +1334,27 @@ def _unique_username(full_name, class_name=''):
 
 @app.route('/teacher/students', methods=['GET', 'POST'])
 def students():
+    if not require_perm('students'):
+        flash('Tài khoản giáo viên chưa được Admin cấp quyền sử dụng chức năng này.', 'error')
+        return redirect(url_for('teacher_dashboard'))
     if not teacher_only(): return redirect(url_for('login'))
     if request.method == 'POST':
         username = request.form['username'].strip(); email = request.form.get('email', '').strip().lower() or None
         if User.query.filter_by(username=username).first(): flash('Tên đăng nhập đã tồn tại.', 'error')
         elif email and User.query.filter(db.func.lower(User.email) == email).first(): flash('Email đã được dùng.', 'error')
         else:
+            cid = int(request.form['classroom_id'])
+            if cid not in accessible_class_ids():
+                flash('Bạn không có quyền thêm học sinh vào lớp này.', 'error')
+                return redirect(url_for('students'))
             db.session.add(User(username=username, email=email, password_hash=generate_password_hash(request.form['password']),
-                                full_name=request.form['full_name'].strip(), role='student', classroom_id=int(request.form['classroom_id'])))
+                                full_name=request.form['full_name'].strip(), role='student', classroom_id=cid))
             db.session.commit(); flash('Đã tạo tài khoản học sinh.', 'ok')
         return redirect(url_for('students'))
-    return render_template('students.html', students=User.query.filter_by(role='student').order_by(User.full_name).all(), classes=Classroom.query.order_by(Classroom.name).all())
+    classes = accessible_classes(); class_ids = [c.id for c in classes]
+    students_q = User.query.filter(User.role=='student')
+    students_q = students_q.filter(User.classroom_id.in_(class_ids)) if class_ids else students_q.filter(text('1=0'))
+    return render_template('students.html', students=students_q.order_by(User.full_name).all(), classes=classes)
 
 @app.route('/teacher/students/excel-template')
 def student_excel_template():
@@ -954,6 +1365,9 @@ def student_excel_template():
 
 @app.route('/teacher/students/import-excel', methods=['POST'])
 def import_students_excel():
+    if not require_perm('students'):
+        flash('Bạn chưa được cấp quyền cho chức năng này.', 'error')
+        return redirect(url_for('teacher_dashboard'))
     if not teacher_only(): return redirect(url_for('login'))
     f = request.files.get('excel_file')
     if not f or not getattr(f, 'filename', '') or not f.filename.lower().endswith('.xlsx'):
@@ -994,10 +1408,12 @@ def import_students_excel():
         if not any([full_name, class_name, username, email]): continue
         if not full_name or not class_name:
             results.append([row, full_name, class_name, username, password, email, 'Bỏ qua: thiếu Họ và tên hoặc Lớp']); skipped += 1; continue
-        classroom = Classroom.query.filter(db.func.lower(Classroom.name) == class_name.lower()).first()
+        cq = Classroom.query.filter(db.func.lower(Classroom.name) == class_name.lower())
+        if me().role == 'teacher': cq = cq.filter(Classroom.teacher_id == me().id)
+        classroom = cq.first()
         if not classroom and auto_create_class:
             m = re.search(r'([6-9])', class_name)
-            classroom = Classroom(name=class_name, grade=m.group(1) if m else '', description='Tạo tự động khi nhập Excel')
+            classroom = Classroom(name=class_name, grade=m.group(1) if m else '', description='Tạo tự động khi nhập Excel', teacher_id=me().id, subject='Toán')
             db.session.add(classroom); db.session.flush()
         if not classroom:
             results.append([row, full_name, class_name, username, password, email, 'Bỏ qua: lớp chưa tồn tại']); skipped += 1; continue
@@ -1031,15 +1447,18 @@ def import_students_excel():
 def reset_password(user_id):
     if not teacher_only(): return redirect(url_for('login'))
     u = db.session.get(User, user_id)
-    if u and u.role == 'student':
+    if u and u.role == 'student' and u.classroom_id in accessible_class_ids():
         u.password_hash = generate_password_hash(request.form.get('password', '123456')); db.session.commit(); flash('Đã đổi mật khẩu học sinh.', 'ok')
     return redirect(url_for('students'))
 
 @app.route('/teacher/student/<int:user_id>/delete', methods=['POST'])
 def delete_student(user_id):
+    if not require_perm('students'):
+        flash('Bạn chưa được cấp quyền cho chức năng này.', 'error')
+        return redirect(url_for('teacher_dashboard'))
     if not teacher_only(): return redirect(url_for('login'))
     u = db.session.get(User, user_id)
-    if u and u.role == 'student':
+    if u and u.role == 'student' and u.classroom_id in accessible_class_ids():
         for s in Submission.query.filter_by(student_id=u.id).all():
             Answer.query.filter_by(submission_id=s.id).delete(); db.session.delete(s)
         db.session.delete(u); db.session.commit(); flash('Đã xóa học sinh.', 'ok')
@@ -1047,19 +1466,77 @@ def delete_student(user_id):
 
 @app.route('/teacher/lessons', methods=['GET', 'POST'])
 def lessons():
+    if not require_perm('lessons'):
+        flash('Tài khoản giáo viên chưa được Admin cấp quyền sử dụng chức năng này.', 'error')
+        return redirect(url_for('teacher_dashboard'))
     if not teacher_only(): return redirect(url_for('login'))
     if request.method == 'POST':
-        db.session.add(Lesson(title=request.form['title'].strip(), description=request.form.get('description', '').strip(),
-                              content=request.form.get('content', '').strip(), resource_url=request.form.get('resource_url', '').strip(),
-                              classroom_id=int(request.form['classroom_id']), created_by=me().id, is_published=bool(request.form.get('is_published'))))
-        db.session.commit(); flash('Đã tạo bài giảng.', 'ok'); return redirect(url_for('lessons'))
-    return render_template('lessons.html', lessons=Lesson.query.filter_by(created_by=me().id).order_by(Lesson.id.desc()).all(), classes=Classroom.query.order_by(Classroom.name).all())
+        cid = int(request.form['classroom_id'])
+        if cid not in accessible_class_ids():
+            flash('Bạn không có quyền giao bài giảng cho lớp này.', 'error')
+            return redirect(url_for('lessons'))
+
+        upload = request.files.get('lesson_file')
+        file_name = ''
+        file_path = ''
+        file_mime = ''
+        preview_pdf_path = ''
+
+        if upload and upload.filename:
+            if not lesson_file_allowed(upload.filename):
+                flash('Chỉ hỗ trợ PowerPoint (.ppt/.pptx), PDF (.pdf) và Word (.doc/.docx).', 'error')
+                return redirect(url_for('lessons'))
+            file_name = secure_filename(upload.filename)
+            raw = upload.read()
+            if not raw:
+                flash('File bài giảng rỗng hoặc không đọc được.', 'error')
+                return redirect(url_for('lessons'))
+            file_mime = upload.mimetype or 'application/octet-stream'
+            ext = os.path.splitext(file_name)[1].lower()
+            key_base = f"lessons/{me().id}/{uuid.uuid4().hex}"
+            try:
+                file_path = save_lesson_bytes(raw, key_base + ext, file_mime)
+                pdf_bytes = convert_office_to_pdf_bytes(raw, file_name)
+                if pdf_bytes:
+                    preview_pdf_path = save_lesson_bytes(pdf_bytes, key_base + '_preview.pdf', 'application/pdf')
+            except Exception as e:
+                flash('Không thể lưu/chuyển đổi file bài giảng: ' + str(e)[:180], 'error')
+                return redirect(url_for('lessons'))
+
+        lesson = Lesson(
+            title=request.form['title'].strip(),
+            subject=request.form.get('subject','Toán').strip() or 'Toán',
+            description=request.form.get('description', '').strip(),
+            content=request.form.get('content', '').strip(),
+            resource_url=request.form.get('resource_url', '').strip(),
+            classroom_id=cid,
+            created_by=me().id,
+            is_published=bool(request.form.get('is_published')),
+            file_name=file_name,
+            file_path=file_path,
+            file_mime=file_mime,
+            preview_pdf_path=preview_pdf_path,
+        )
+        db.session.add(lesson)
+        db.session.commit()
+        if upload and upload.filename and not preview_pdf_path and os.path.splitext(file_name)[1].lower() != '.pdf':
+            flash('Đã tạo bài giảng và lưu file gốc. Máy chủ chưa chuyển được file sang PDF nên học sinh vẫn có thể tải file gốc.', 'ok')
+        else:
+            flash('Đã tạo bài giảng.', 'ok')
+        return redirect(url_for('lessons'))
+    return render_template('lessons.html', lessons=Lesson.query.filter_by(created_by=me().id).order_by(Lesson.id.desc()).all(), classes=accessible_classes())
 
 @app.route('/teacher/lesson/<int:lid>/delete', methods=['POST'])
 def delete_lesson(lid):
+    if not require_perm('lessons'):
+        flash('Bạn chưa được cấp quyền Bài giảng.', 'error')
+        return redirect(url_for('teacher_dashboard'))
     if not teacher_only(): return redirect(url_for('login'))
     x = db.session.get(Lesson, lid)
-    if x and x.created_by == me().id:
+    if x and (me().role == 'admin' or x.created_by == me().id):
+        delete_lesson_storage(x.file_path)
+        if x.preview_pdf_path and x.preview_pdf_path != x.file_path:
+            delete_lesson_storage(x.preview_pdf_path)
         db.session.delete(x); db.session.commit(); flash('Đã xóa bài giảng.', 'ok')
     return redirect(url_for('lessons'))
 
@@ -1075,17 +1552,22 @@ def download_word_template():
 
 @app.route('/teacher/question-bank', methods=['GET', 'POST'])
 def question_bank():
+    if not require_perm('question_bank'):
+        flash('Tài khoản giáo viên chưa được Admin cấp quyền sử dụng chức năng này.', 'error')
+        return redirect(url_for('teacher_dashboard'))
     if not teacher_only(): return redirect(url_for('login'))
     if request.method == 'POST':
         image_path = save_uploaded_image(request.files.get('image_file'), 'question')
         try: weight = max(0, float(request.form.get('points', 1) or 1))
         except: weight = 1.0
-        q = BankQuestion(owner_id=me().id, grade=request.form.get('grade', '').strip(), topic=request.form.get('topic', '').strip(),
+        q = BankQuestion(owner_id=me().id, subject=request.form.get('subject','Toán').strip() or 'Toán',
+                         grade=request.form.get('grade', '').strip(), topic=request.form.get('topic', '').strip(),
                          difficulty=request.form.get('difficulty', 'Trung bình').strip() or 'Trung bình', domain=request.form.get('domain', 'Đại số').strip() or 'Đại số', qtype=request.form['qtype'], content=request.form['content'].strip(), option_a=request.form.get('option_a', '').strip(),
                          option_b=request.form.get('option_b', '').strip(), option_c=request.form.get('option_c', '').strip(),
                          option_d=request.form.get('option_d', '').strip(), correct_answer=request.form.get('correct_answer', '').strip().upper(),
                          explanation=request.form.get('explanation', '').strip(), points=weight, image_path=image_path)
         db.session.add(q); db.session.commit(); flash('Đã thêm câu hỏi.', 'ok'); return redirect(url_for('question_bank'))
+    subject = request.args.get('subject', '').strip()
     grade = request.args.get('grade', '').strip()
     qtype = request.args.get('qtype', '').strip()
     difficulty = request.args.get('difficulty', '').strip()
@@ -1096,6 +1578,7 @@ def question_bank():
     except: page = 1
     per_page = 100
     query = BankQuestion.query.filter_by(owner_id=me().id)
+    if subject: query = query.filter(BankQuestion.subject == subject)
     if grade: query = query.filter(BankQuestion.grade == grade)
     if qtype: query = query.filter(BankQuestion.qtype == qtype)
     if difficulty: query = query.filter(BankQuestion.difficulty == difficulty)
@@ -1107,32 +1590,213 @@ def question_bank():
     topic_rows = db.session.query(BankQuestion.topic).filter_by(owner_id=me().id).distinct().order_by(BankQuestion.topic).all()
     topics = [x[0] for x in topic_rows if x[0]]
     return render_template('question_bank.html', questions=qs, total=total, page=page, per_page=per_page,
-                           filter_grade=grade, filter_qtype=qtype, filter_difficulty=difficulty, filter_domain=domain, filter_topic=topic, filter_search=search, topics=topics)
+                           filter_subject=subject, filter_grade=grade, filter_qtype=qtype, filter_difficulty=difficulty, filter_domain=domain, filter_topic=topic, filter_search=search, topics=topics)
+
+
+
+def repair_math_english_domains():
+    """Phân loại lại câu Toán tiếng Anh cũ thành Đại số / Hình học."""
+    try:
+        geometry_topics = [
+            'Basic geometry',
+            'Geometry',
+            'Geometry and measurement',
+            'Pythagorean theorem',
+            'Geometry and circles',
+        ]
+        q = BankQuestion.query.filter(BankQuestion.subject == 'Toán tiếng Anh')
+        # Tất cả câu tiếng Anh cũ mặc định về Đại số trước
+        q.update({BankQuestion.domain: 'Đại số'}, synchronize_session=False)
+        # Sau đó đưa đúng các chủ đề hình học sang Hình học
+        BankQuestion.query.filter(
+            BankQuestion.subject == 'Toán tiếng Anh',
+            BankQuestion.topic.in_(geometry_topics)
+        ).update({BankQuestion.domain: 'Hình học'}, synchronize_session=False)
+        db.session.commit()
+        return True
+    except Exception:
+        db.session.rollback()
+        return False
+
+def ensure_question_bank_loader_schema():
+    """Đồng bộ các cột tối thiểu của ngân hàng câu hỏi khi nâng cấp từ bản cũ."""
+    insp = inspect(db.engine)
+    cols = {c['name'] for c in insp.get_columns('bank_question')}
+
+    if 'subject' not in cols:
+        db.session.execute(text("ALTER TABLE bank_question ADD COLUMN subject VARCHAR(30)"))
+        db.session.commit()
+
+    # Dữ liệu cũ mặc định là Toán
+    db.session.execute(text("UPDATE bank_question SET subject='Toán' WHERE subject IS NULL OR subject=''"))
+    db.session.commit()
+
+    # PostgreSQL: nới cột domain nếu bản cũ chỉ VARCHAR(20).
+    # SQLite không cần vì không ép độ dài VARCHAR.
+    try:
+        if db.engine.dialect.name == 'postgresql':
+            db.session.execute(text("ALTER TABLE bank_question ALTER COLUMN domain TYPE VARCHAR(80)"))
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def _load_builtin_bank_json(filename, subject_name, marker_prefix, success_label):
+    if not require_perm('question_bank'):
+        flash('Bạn chưa được Admin cấp quyền Ngân hàng câu hỏi.', 'error')
+        return redirect(url_for('teacher_dashboard'))
+    if not teacher_only():
+        return redirect(url_for('login'))
+
+    try:
+        ensure_question_bank_loader_schema()
+
+        data_path = os.path.join(os.path.dirname(__file__), filename)
+        if not os.path.exists(data_path):
+            flash(f'Không tìm thấy file ngân hàng: {filename}', 'error')
+            return redirect(url_for('question_bank'))
+
+        with open(data_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        if not isinstance(data, list):
+            flash('File ngân hàng câu hỏi không đúng định dạng.', 'error')
+            return redirect(url_for('question_bank'))
+
+        existing_rows = db.session.query(BankQuestion.explanation).filter(
+            BankQuestion.owner_id == me().id,
+            BankQuestion.explanation.like(marker_prefix + '%')
+        ).all()
+        existing_markers = {
+            (row[0] or '').split(' | ', 1)[0]
+            for row in existing_rows
+            if row[0]
+        }
+
+        added = 0
+        skipped = 0
+        errors = 0
+        first_error = None
+
+        for idx, x in enumerate(data, start=1):
+            marker_id = f"{marker_prefix}{x.get('grade','')}-{idx:04d}"
+            if marker_id in existing_markers:
+                skipped += 1
+                continue
+
+            try:
+                explanation = marker_id
+                if x.get('explanation'):
+                    explanation += ' | ' + str(x.get('explanation'))
+
+                qtype = str(x.get('qtype', 'mcq') or 'mcq').strip()
+                if qtype not in ('mcq', 'short', 'essay'):
+                    qtype = 'mcq'
+
+                try:
+                    pts = float(x.get('points', 1) or 1)
+                except Exception:
+                    pts = 1.0
+
+                # SAVEPOINT từng câu: một câu lỗi không làm rollback các câu khác.
+                with db.session.begin_nested():
+                    q = BankQuestion(
+                        owner_id=me().id,
+                        subject=subject_name,
+                        grade=str(x.get('grade','') or ''),
+                        topic=str(x.get('topic','') or ''),
+                        difficulty=str(x.get('difficulty','Trung bình') or 'Trung bình'),
+                        domain=str(x.get('domain','') or 'Đại số'),
+                        qtype=qtype,
+                        content=str(x.get('content','') or ''),
+                        option_a=str(x.get('option_a','') or ''),
+                        option_b=str(x.get('option_b','') or ''),
+                        option_c=str(x.get('option_c','') or ''),
+                        option_d=str(x.get('option_d','') or ''),
+                        correct_answer=str(x.get('correct_answer','') or ''),
+                        explanation=explanation,
+                        points=pts,
+                        image_path=''
+                    )
+                    db.session.add(q)
+                    db.session.flush()
+
+                added += 1
+                existing_markers.add(marker_id)
+
+                if added % 100 == 0:
+                    db.session.commit()
+
+            except Exception as e:
+                errors += 1
+                if first_error is None:
+                    first_error = str(e)
+                # savepoint đã rollback câu lỗi; transaction chính vẫn dùng được
+                continue
+
+        db.session.commit()
+
+        if errors:
+            detail = f' Lỗi đầu tiên: {first_error[:160]}' if first_error else ''
+            flash(
+                f'Đã nạp {added} câu {success_label}; bỏ qua {skipped} câu đã có; '
+                f'{errors} câu lỗi.{detail}',
+                'ok' if added else 'error'
+            )
+        else:
+            flash(f'Đã nạp {added} câu {success_label}; bỏ qua {skipped} câu đã có.', 'ok')
+
+        return redirect(url_for('question_bank'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash('Không thể nạp ngân hàng câu hỏi. Chi tiết: ' + str(e)[:220], 'error')
+        return redirect(url_for('question_bank'))
+
 
 @app.route('/teacher/question-bank/load-1000', methods=['POST'])
 def load_builtin_1000_questions():
-    if not teacher_only(): return redirect(url_for('login'))
-    data_path = os.path.join(os.path.dirname(__file__), 'question_bank_1000.json')
-    if not os.path.exists(data_path):
-        flash('Không tìm thấy gói 1.000 câu hỏi đi kèm phần mềm.', 'error')
-        return redirect(url_for('question_bank'))
-    with open(data_path, 'r', encoding='utf-8') as f:
-        items = json.load(f)
-    existing = {x[0] for x in db.session.query(BankQuestion.explanation).filter(
-        BankQuestion.owner_id == me().id, BankQuestion.explanation.like('§NH1000§%')).all()}
-    added = 0
-    for idx, x in enumerate(items, start=1):
-        marker = f"§NH1000§{x.get('grade','')}-{idx:04d}"
-        explanation = marker + (' | ' + x.get('explanation','') if x.get('explanation') else '')
-        if explanation in existing: continue
-        db.session.add(BankQuestion(owner_id=me().id, grade=x.get('grade',''), topic=x.get('topic',''),
-            difficulty=x.get('difficulty','Trung bình'), domain=x.get('domain','Đại số'), qtype=x.get('qtype','mcq'), content=x.get('content',''), option_a=x.get('option_a',''),
-            option_b=x.get('option_b',''), option_c=x.get('option_c',''), option_d=x.get('option_d',''),
-            correct_answer=x.get('correct_answer',''), explanation=explanation, points=float(x.get('points',1) or 1), image_path=''))
-        added += 1
-    db.session.commit()
-    flash(f'Đã nạp thêm {added} câu. Ngân hàng tích hợp gồm 1.000 câu Toán lớp 6–9; bấm lại sẽ không nhân đôi.', 'ok')
+    return _load_builtin_bank_json(
+        'question_bank_1000.json',
+        'Toán',
+        '§NH1000§',
+        'Toán lớp 6–9'
+    )
+
+
+
+@app.route('/teacher/question-bank/repair-math-english-domains', methods=['POST'])
+def repair_math_english_domains_route():
+    if not require_perm('question_bank'):
+        flash('Bạn chưa được cấp quyền Ngân hàng câu hỏi.', 'error')
+        return redirect(url_for('teacher_dashboard'))
+    if repair_math_english_domains():
+        flash('Đã phân loại lại Toán tiếng Anh: các chủ đề hình học đã chuyển sang phân môn Hình học.', 'ok')
+    else:
+        flash('Không thể phân loại lại Toán tiếng Anh.', 'error')
     return redirect(url_for('question_bank'))
+
+@app.route('/teacher/question-bank/load-math-english-1000', methods=['POST'])
+def load_builtin_math_english_1000():
+    result = _load_builtin_bank_json(
+        'question_bank_math_english_1000.json',
+        'Toán tiếng Anh',
+        '§MATHEN1000§',
+        'Toán tiếng Anh lớp 6–9'
+    )
+    repair_math_english_domains()
+    return result
+
+
+@app.route('/teacher/question-bank/load-it-1000', methods=['POST'])
+def load_builtin_it_1000_questions():
+    return _load_builtin_bank_json(
+        'question_bank_it_1000.json',
+        'Tin học',
+        '§TIN1000§',
+        'Tin học lớp 6–9'
+    )
+
 
 @app.route('/teacher/question-bank/upload-word', methods=['POST'])
 def bank_upload_word():
@@ -1158,19 +1822,22 @@ def delete_bank_question(qid):
 
 @app.route('/teacher/assignments/new', methods=['GET', 'POST'])
 def new_assignment():
+    if not require_perm('assignments'):
+        flash('Tài khoản giáo viên chưa được Admin cấp quyền sử dụng chức năng này.', 'error')
+        return redirect(url_for('teacher_dashboard'))
     if not teacher_only(): return redirect(url_for('login'))
-    classes_all = Classroom.query.order_by(Classroom.name).all()
+    classes_all = accessible_classes()
     if request.method == 'POST':
         class_ids = request.form.getlist('classroom_ids')
         if not class_ids:
             flash('Hãy chọn ít nhất một lớp để giao bài.', 'error'); return render_template('new_assignment.html', classes=classes_all)
         try: scale = max(0.01, float(request.form.get('score_scale', 10) or 10))
         except: scale = 10.0
-        a = Assignment(title=request.form['title'].strip(), description=request.form.get('description', '').strip(), created_by=me().id,
+        a = Assignment(title=request.form['title'].strip(), subject=request.form.get('subject','Toán').strip() or 'Toán', description=request.form.get('description', '').strip(), created_by=me().id,
                        duration_minutes=max(1, int(request.form.get('duration_minutes', 45))), starts_at=parse_dt(request.form.get('starts_at')),
                        due_at=parse_dt(request.form.get('due_at')), score_scale=scale, shuffle_questions=bool(request.form.get('shuffle_questions')),
                        shuffle_options=bool(request.form.get('shuffle_options')), show_result=bool(request.form.get('show_result')),
-                       allow_retake=bool(request.form.get('allow_retake')), is_published=bool(request.form.get('is_published')))
+                       show_answers=bool(request.form.get('show_answers')), allow_retake=bool(request.form.get('allow_retake')), is_published=bool(request.form.get('is_published')))
         if a.starts_at and a.due_at and a.starts_at >= a.due_at:
             flash('Thời gian kết thúc phải sau thời gian bắt đầu.', 'error'); return render_template('new_assignment.html', classes=classes_all)
         db.session.add(a); db.session.flush(); set_assignment_classes(a, class_ids); db.session.commit()
@@ -1179,6 +1846,9 @@ def new_assignment():
 
 @app.route('/teacher/assignment/<int:assignment_id>', methods=['GET', 'POST'])
 def edit_assignment(assignment_id):
+    if not require_perm('assignments'):
+        flash('Tài khoản giáo viên chưa được Admin cấp quyền sử dụng chức năng này.', 'error')
+        return redirect(url_for('teacher_dashboard'))
     if not teacher_only(): return redirect(url_for('login'))
     a = db.session.get(Assignment, assignment_id)
     if not a or a.created_by != me().id: return 'Không có quyền', 403
@@ -1192,6 +1862,7 @@ def edit_assignment(assignment_id):
         db.session.commit(); flash('Đã thêm câu hỏi vào đề.', 'ok')
     aq = AssignmentQuestion.query.filter_by(assignment_id=a.id).order_by(AssignmentQuestion.order_no).all()
     selected = [db.session.get(BankQuestion, x.question_id) for x in aq]
+    bank_subject = request.args.get('bank_subject', a.subject or '').strip()
     bank_grade = request.args.get('bank_grade', '').strip()
     bank_qtype = request.args.get('bank_qtype', '').strip()
     bank_difficulty = request.args.get('bank_difficulty', '').strip()
@@ -1199,6 +1870,7 @@ def edit_assignment(assignment_id):
     bank_topic = request.args.get('bank_topic', '').strip()
     bank_search = request.args.get('bank_search', '').strip()
     bq = BankQuestion.query.filter_by(owner_id=me().id)
+    if bank_subject: bq = bq.filter(BankQuestion.subject == bank_subject)
     if bank_grade: bq = bq.filter(BankQuestion.grade == bank_grade)
     if bank_qtype: bq = bq.filter(BankQuestion.qtype == bank_qtype)
     if bank_difficulty: bq = bq.filter(BankQuestion.difficulty == bank_difficulty)
@@ -1207,12 +1879,15 @@ def edit_assignment(assignment_id):
     if bank_search: bq = bq.filter(BankQuestion.content.ilike(f'%{bank_search}%'))
     bank = bq.order_by(BankQuestion.id.desc()).limit(120).all()
     return render_template('edit_assignment.html', assignment=a, selected=selected, bank=bank,
-                           classes=Classroom.query.order_by(Classroom.name).all(), selected_class_ids=assignment_class_ids(a),
-                           score_map=question_score_map(a, selected), bank_grade=bank_grade, bank_qtype=bank_qtype,
+                           classes=accessible_classes(), selected_class_ids=assignment_class_ids(a),
+                           score_map=question_score_map(a, selected), bank_subject=bank_subject, bank_grade=bank_grade, bank_qtype=bank_qtype,
                            bank_difficulty=bank_difficulty, bank_domain=bank_domain, bank_topic=bank_topic, bank_search=bank_search)
 
 @app.route('/teacher/assignment/<int:assignment_id>/auto-generate', methods=['POST'])
 def auto_generate_assignment(assignment_id):
+    if not require_perm('assignments'):
+        flash('Bạn chưa được cấp quyền cho chức năng này.', 'error')
+        return redirect(url_for('teacher_dashboard'))
     if not teacher_only(): return redirect(url_for('login'))
     a = db.session.get(Assignment, assignment_id)
     if not a or a.created_by != me().id: return 'Không có quyền', 403
@@ -1235,6 +1910,7 @@ def auto_generate_assignment(assignment_id):
     plan = ratios.get(preset, ratios['Trung bình'])
     existing = {x.question_id for x in AssignmentQuestion.query.filter_by(assignment_id=a.id).all()}
     base = BankQuestion.query.filter_by(owner_id=me().id, grade=grade)
+    if a.subject: base = base.filter(BankQuestion.subject == a.subject)
     if domain: base = base.filter(BankQuestion.domain == domain)
     if topic: base = base.filter(BankQuestion.topic.ilike(f'%{topic}%'))
     available = [q for q in base.all() if q.id not in existing]
@@ -1278,7 +1954,7 @@ def assignment_upload_word(assignment_id):
     fn = f'{uuid.uuid4().hex[:8]}_{secure_filename(f.filename)}'; path = os.path.join(app.config['UPLOAD_FOLDER'], fn); f.save(path)
     items = parse_word(path); order = AssignmentQuestion.query.filter_by(assignment_id=a.id).count()
     for x in items:
-        q = BankQuestion(owner_id=me().id, grade=request.form.get('grade', '').strip(), topic=request.form.get('topic', '').strip(),
+        q = BankQuestion(owner_id=me().id, subject=request.form.get('subject','Toán').strip() or 'Toán', grade=request.form.get('grade', '').strip(), topic=request.form.get('topic', '').strip(),
                          difficulty=request.form.get('difficulty', 'Trung bình').strip() or 'Trung bình', domain=request.form.get('domain', 'Đại số').strip() or 'Đại số', qtype=x['qtype'], content=x['content'], option_a=x['opts']['A'], option_b=x['opts']['B'], option_c=x['opts']['C'], option_d=x['opts']['D'],
                          correct_answer=x['correct'], explanation=x['explanation'], points=x['points'], image_path=x['image_path'])
         db.session.add(q); db.session.flush(); order += 1
@@ -1319,10 +1995,10 @@ def assignment_settings(assignment_id):
         flash('Thời gian kết thúc phải sau thời gian bắt đầu.', 'error'); return redirect(url_for('edit_assignment', assignment_id=a.id))
     try: scale = max(0.01, float(request.form.get('score_scale', 10) or 10))
     except: scale = 10.0
-    a.title = request.form['title'].strip(); a.description = request.form.get('description', '').strip()
+    a.title = request.form['title'].strip(); a.subject = request.form.get('subject', a.subject or 'Toán').strip() or 'Toán'; a.description = request.form.get('description', '').strip()
     a.duration_minutes = max(1, int(request.form.get('duration_minutes', 45))); a.starts_at = starts_at; a.due_at = due_at; a.score_scale = scale
     a.shuffle_questions = bool(request.form.get('shuffle_questions')); a.shuffle_options = bool(request.form.get('shuffle_options'))
-    a.show_result = bool(request.form.get('show_result')); a.allow_retake = bool(request.form.get('allow_retake'))
+    a.show_result = bool(request.form.get('show_result')); a.show_answers = bool(request.form.get('show_answers')); a.allow_retake = bool(request.form.get('allow_retake'))
     set_assignment_classes(a, class_ids); db.session.commit(); flash('Đã lưu cấu hình.', 'ok'); return redirect(url_for('edit_assignment', assignment_id=a.id))
 
 @app.route('/teacher/assignment/<int:assignment_id>/publish', methods=['POST'])
@@ -1373,6 +2049,9 @@ def remove_from_assignment(assignment_id, qid):
 
 @app.route('/teacher/assignment/<int:assignment_id>/results')
 def assignment_results(assignment_id):
+    if not require_perm('grades'):
+        flash('Tài khoản giáo viên chưa được Admin cấp quyền sử dụng chức năng này.', 'error')
+        return redirect(url_for('teacher_dashboard'))
     if not teacher_only(): return redirect(url_for('login'))
     a = db.session.get(Assignment, assignment_id)
     if not a or a.created_by != me().id: return 'Không có quyền', 403
@@ -1446,6 +2125,31 @@ def student_lesson(lid):
     if not x or x.classroom_id != me().classroom_id or not x.is_published: return 'Không có quyền', 403
     return render_template('student_lesson.html', lesson=x)
 
+
+@app.route('/lesson/<int:lid>/file/<kind>')
+def lesson_file(lid, kind):
+    lesson = db.session.get(Lesson, lid)
+    if not lesson_access_allowed(lesson):
+        return 'Không có quyền truy cập file bài giảng', 403
+
+    if kind == 'preview':
+        stored = lesson.preview_pdf_path
+        download_name = (os.path.splitext(lesson.file_name or lesson.title)[0] or 'bai-giang') + '.pdf'
+        mimetype = 'application/pdf'
+        as_attachment = False
+    elif kind == 'original':
+        stored = lesson.file_path
+        download_name = lesson.file_name or 'bai-giang'
+        mimetype = lesson.file_mime or 'application/octet-stream'
+        as_attachment = request.args.get('download', '1') != '0'
+    else:
+        return 'Không tìm thấy file', 404
+
+    data = read_lesson_bytes(stored)
+    if data is None:
+        return 'File không còn tồn tại hoặc kho lưu trữ chưa kết nối.', 404
+    return send_file(BytesIO(data), mimetype=mimetype, as_attachment=as_attachment, download_name=download_name)
+
 @app.route('/student/assignment/<int:assignment_id>/retake', methods=['POST'])
 def retake_assignment(assignment_id):
     if not student_only(): return redirect(url_for('login'))
@@ -1455,7 +2159,7 @@ def retake_assignment(assignment_id):
     if a.starts_at and now < a.starts_at: flash('Bài chưa đến giờ mở.', 'error'); return redirect(url_for('student_dashboard'))
     if a.due_at and now > a.due_at: flash('Bài đã hết thời gian làm.', 'error'); return redirect(url_for('student_dashboard'))
     Answer.query.filter_by(submission_id=s.id).delete(); s.started_at = local_now(); s.submitted_at = None; s.submitted = False
-    s.auto_score = 0; s.manual_score = 0; s.max_score = a.score_scale; db.session.commit(); return redirect(url_for('do_assignment', assignment_id=a.id))
+    s.auto_score = 0; s.manual_score = 0; s.max_score = a.score_scale; s.correct_count = 0; s.objective_count = 0; db.session.commit(); return redirect(url_for('do_assignment', assignment_id=a.id))
 
 @app.route('/student/assignment/<int:assignment_id>', methods=['GET', 'POST'])
 def do_assignment(assignment_id):
@@ -1467,7 +2171,10 @@ def do_assignment(assignment_id):
         flash('Bài chưa mở. Thời gian bắt đầu: ' + a.starts_at.strftime('%d/%m/%Y %H:%M'), 'error'); return redirect(url_for('student_dashboard'))
     if a.due_at and now > a.due_at and not (sub and sub.submitted):
         flash('Bài này đã hết thời gian làm.', 'error'); return redirect(url_for('student_dashboard'))
-    if sub and sub.submitted: return render_template('student_result.html', assignment=a, submission=sub)
+    if sub and sub.submitted:
+        correct_count, objective_count, review = submission_review(sub, a)
+        return render_template('student_result.html', assignment=a, submission=sub,
+                               review=review)
     if not sub:
         sub = Submission(assignment_id=a.id, student_id=u.id, started_at=local_now(), max_score=a.score_scale)
         db.session.add(sub); db.session.commit()
@@ -1479,16 +2186,29 @@ def do_assignment(assignment_id):
     if a.due_at: remaining = min(remaining, max(0, int((a.due_at - datetime.now()).total_seconds())))
     if request.method == 'POST' or remaining <= 0:
         Answer.query.filter_by(submission_id=sub.id).delete(); auto = 0
+        correct_count = 0; objective_count = 0
         for q in questions:
-            val = request.form.get(f'q_{q.id}', '').strip(); pts = 0
-            if q.qtype == 'mcq' and val.upper() == (q.correct_answer or '').upper():
-                pts = score_map.get(q.id, 0); auto += pts
-            elif q.qtype == 'short' and normalize_short_answer(val) == normalize_short_answer(q.correct_answer):
-                pts = score_map.get(q.id, 0); auto += pts
+            val = request.form.get(f'q_{q.id}', '').strip(); pts = 0; is_correct = False
+            if q.qtype == 'mcq':
+                objective_count += 1
+                is_correct = val.upper() == (q.correct_answer or '').upper()
+                if is_correct:
+                    pts = score_map.get(q.id, 0); auto += pts
+            elif q.qtype == 'short':
+                objective_count += 1
+                is_correct = normalize_short_answer(val) == normalize_short_answer(q.correct_answer)
+                if is_correct:
+                    pts = score_map.get(q.id, 0); auto += pts
+            if is_correct:
+                correct_count += 1
             db.session.add(Answer(submission_id=sub.id, question_id=q.id, answer_text=val, auto_score=pts))
-        sub.auto_score = round(auto, 4); sub.max_score = a.score_scale; sub.submitted = True; sub.submitted_at = datetime.now()
-        db.session.commit(); session.clear()
-        return render_template('submitted.html', score=round(auto, 2), max_score=a.score_scale, show_result=a.show_result)
+        sub.auto_score = round(auto, 4); sub.max_score = a.score_scale
+        sub.correct_count = correct_count; sub.objective_count = objective_count
+        sub.submitted = True; sub.submitted_at = local_now()
+        db.session.commit()
+        _, _, review = submission_review(sub, a)
+        session.clear()
+        return render_template('submitted.html', show_answers=a.show_answers, review=review)
     display = []
     for q in questions:
         opts = [('A', q.option_a), ('B', q.option_b), ('C', q.option_c), ('D', q.option_d)]
@@ -1574,6 +2294,211 @@ def run_v8_migrations():
 
         migrations.append((800, migration_800))
 
+        def migration_820():
+            insp2 = inspect(db.engine)
+            ccols = {c['name'] for c in insp2.get_columns('classroom')}
+            if 'teacher_id' not in ccols:
+                db.session.execute(text("ALTER TABLE classroom ADD COLUMN teacher_id INTEGER"))
+            # Tài khoản mặc định cũ trở thành Quản trị để có thể tạo giáo viên.
+            db.session.execute(text("UPDATE \"user\" SET role='admin' WHERE username='giaovien' AND role='teacher'"))
+            admin_row = db.session.execute(text("SELECT id FROM \"user\" WHERE role='admin' ORDER BY id LIMIT 1")).fetchone()
+            if admin_row:
+                db.session.execute(text("UPDATE classroom SET teacher_id=:uid WHERE teacher_id IS NULL"), {'uid': int(admin_row[0])})
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_classroom_teacher ON classroom (teacher_id)"))
+
+        migrations.append((820, migration_820))
+
+        def migration_830():
+            # Tạo tài khoản quản trị riêng. Tài khoản "giaovien" trở lại vai trò giáo viên.
+            admin_user = User.query.filter_by(username=DEFAULT_ADMIN_USERNAME).first()
+            if not admin_user:
+                admin_user = User(
+                    username=DEFAULT_ADMIN_USERNAME,
+                    password_hash=generate_password_hash(DEFAULT_ADMIN_PASSWORD),
+                    full_name=DEFAULT_ADMIN_NAME,
+                    role='admin'
+                )
+                db.session.add(admin_user)
+                db.session.flush()
+                db.session.add(SiteSetting(owner_id=admin_user.id, teacher_label=DEFAULT_ADMIN_NAME))
+            else:
+                admin_user.role = 'admin'
+
+            old_teacher = User.query.filter_by(username='giaovien').first()
+            if old_teacher and old_teacher.username != DEFAULT_ADMIN_USERNAME:
+                old_teacher.role = 'teacher'
+
+        migrations.append((830, migration_830))
+
+        def migration_840():
+            insp3 = inspect(db.engine)
+            tables = {
+                'classroom': 'subject',
+                'assignment': 'subject',
+                'bank_question': 'subject',
+                'lesson': 'subject'
+            }
+            for table_name, col_name in tables.items():
+                cols = {c['name'] for c in insp3.get_columns(table_name)}
+                if col_name not in cols:
+                    db.session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} VARCHAR(30)"))
+                    db.session.execute(text(f"UPDATE {table_name} SET {col_name}='Toán' WHERE {col_name} IS NULL"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_classroom_subject ON classroom (subject)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_assignment_subject ON assignment (subject)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_bank_question_subject ON bank_question (subject)"))
+
+        migrations.append((840, migration_840))
+
+        def migration_860():
+            insp4 = inspect(db.engine)
+            acols = {c['name'] for c in insp4.get_columns('assignment')}
+            if 'show_answers' not in acols:
+                db.session.execute(text("ALTER TABLE assignment ADD COLUMN show_answers BOOLEAN"))
+                db.session.execute(text("UPDATE assignment SET show_answers=0 WHERE show_answers IS NULL"))
+            scols = {c['name'] for c in insp4.get_columns('submission')}
+            if 'correct_count' not in scols:
+                db.session.execute(text("ALTER TABLE submission ADD COLUMN correct_count INTEGER"))
+                db.session.execute(text("UPDATE submission SET correct_count=0 WHERE correct_count IS NULL"))
+            if 'objective_count' not in scols:
+                db.session.execute(text("ALTER TABLE submission ADD COLUMN objective_count INTEGER"))
+                db.session.execute(text("UPDATE submission SET objective_count=0 WHERE objective_count IS NULL"))
+
+        migrations.append((860, migration_860))
+
+        def migration_880():
+            insp5 = inspect(db.engine)
+            ucols = {c['name'] for c in insp5.get_columns('user')}
+            perm_defs = [
+                ('perm_classes', 'BOOLEAN'),
+                ('perm_students', 'BOOLEAN'),
+                ('perm_question_bank', 'BOOLEAN'),
+                ('perm_assignments', 'BOOLEAN'),
+                ('perm_lessons', 'BOOLEAN'),
+                ('perm_grades', 'BOOLEAN'),
+            ]
+            for col, typ in perm_defs:
+                if col not in ucols:
+                    db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN {col} {typ}'))
+                    db.session.execute(text(f'UPDATE "user" SET {col}=1 WHERE role IN (:teacher_role, :admin_role) AND {col} IS NULL'),
+                                       {'teacher_role': 'teacher', 'admin_role': 'admin'})
+                    db.session.execute(text(f'UPDATE "user" SET {col}=0 WHERE role=:student_role AND {col} IS NULL'),
+                                       {'student_role': 'student'})
+
+        migrations.append((880, migration_880))
+
+        def migration_890():
+            insp6 = inspect(db.engine)
+            lcols = {c['name'] for c in insp6.get_columns('lesson')}
+            defs = [
+                ('subject', 'VARCHAR(30)'),
+                ('file_name', 'VARCHAR(255)'),
+                ('file_path', 'VARCHAR(500)'),
+                ('file_mime', 'VARCHAR(120)'),
+                ('preview_pdf_path', 'VARCHAR(500)'),
+            ]
+            for col, typ in defs:
+                if col not in lcols:
+                    db.session.execute(text(f'ALTER TABLE lesson ADD COLUMN {col} {typ}'))
+            db.session.execute(text("UPDATE lesson SET subject='Toán' WHERE subject IS NULL"))
+            db.session.execute(text("UPDATE lesson SET file_name='' WHERE file_name IS NULL"))
+            db.session.execute(text("UPDATE lesson SET file_path='' WHERE file_path IS NULL"))
+            db.session.execute(text("UPDATE lesson SET file_mime='' WHERE file_mime IS NULL"))
+            db.session.execute(text("UPDATE lesson SET preview_pdf_path='' WHERE preview_pdf_path IS NULL"))
+
+        migrations.append((890, migration_890))
+
+        def migration_912():
+            insp7 = inspect(db.engine)
+            bcols = {c['name'] for c in insp7.get_columns('bank_question')}
+            if 'subject' not in bcols:
+                db.session.execute(text("ALTER TABLE bank_question ADD COLUMN subject VARCHAR(30)"))
+            db.session.execute(text("UPDATE bank_question SET subject='Toán' WHERE subject IS NULL OR subject=''"))
+            try:
+                if db.engine.dialect.name == 'postgresql':
+                    db.session.execute(text("ALTER TABLE bank_question ALTER COLUMN domain TYPE VARCHAR(80)"))
+            except Exception:
+                pass
+
+        migrations.append((912, migration_912))
+
+        def migration_914():
+            try:
+                db.session.execute(text(
+                    "UPDATE bank_question SET domain='Đại số' "
+                    "WHERE subject='Toán tiếng Anh'"
+                ))
+                geometry_topics = [
+                    'Basic geometry',
+                    'Geometry',
+                    'Geometry and measurement',
+                    'Pythagorean theorem',
+                    'Geometry and circles'
+                ]
+                for tp in geometry_topics:
+                    db.session.execute(text(
+                        "UPDATE bank_question SET domain='Hình học' "
+                        "WHERE subject='Toán tiếng Anh' AND topic=:topic"
+                    ), {'topic': tp})
+            except Exception:
+                db.session.rollback()
+
+        migrations.append((914, migration_914))
+
+        def migration_915():
+            insp8 = inspect(db.engine)
+            ucols = {c['name'] for c in insp8.get_columns('user')}
+            permission_columns = [
+                'perm_classes',
+                'perm_students',
+                'perm_question_bank',
+                'perm_assignments',
+                'perm_lessons',
+                'perm_grades',
+            ]
+            for col in permission_columns:
+                if col not in ucols:
+                    db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN {col} BOOLEAN'))
+            for col in permission_columns:
+                db.session.execute(
+                    text(f'UPDATE "user" SET {col}=1 WHERE role IN (:teacher_role, :admin_role) AND {col} IS NULL'),
+                    {'teacher_role': 'teacher', 'admin_role': 'admin'}
+                )
+                db.session.execute(
+                    text(f'UPDATE "user" SET {col}=0 WHERE role=:student_role AND {col} IS NULL'),
+                    {'student_role': 'student'}
+                )
+
+        migrations.append((915, migration_915))
+
+        def migration_916():
+            insp9 = inspect(db.engine)
+            cols = {c['name'] for c in insp9.get_columns('user')}
+            permission_columns = [
+                'perm_classes',
+                'perm_students',
+                'perm_question_bank',
+                'perm_assignments',
+                'perm_lessons',
+                'perm_grades',
+            ]
+            for col in permission_columns:
+                if col not in cols:
+                    db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN {col} BOOLEAN'))
+
+            for col in permission_columns:
+                db.session.execute(
+                    text(f'UPDATE "user" SET {col}=1 '
+                         f'WHERE role IN (:teacher_role,:admin_role) AND {col} IS NULL'),
+                    {'teacher_role':'teacher','admin_role':'admin'}
+                )
+                db.session.execute(
+                    text(f'UPDATE "user" SET {col}=0 '
+                         f'WHERE role=:student_role AND {col} IS NULL'),
+                    {'student_role':'student'}
+                )
+
+        migrations.append((916, migration_916))
+
         for version, fn in migrations:
             if version in done:
                 continue
@@ -1590,13 +2515,46 @@ def run_v8_migrations():
 
 
 def seed():
-    if not User.query.filter_by(username='giaovien').first():
-        db.session.add(User(username='giaovien', password_hash=generate_password_hash('123456'), full_name='Giáo viên Toán', role='teacher'))
-    if not Classroom.query.first():
-        db.session.add_all([Classroom(name='6A1', grade='6'), Classroom(name='7A1', grade='7'), Classroom(name='8A1', grade='8'), Classroom(name='9A1', grade='9')])
-    db.session.commit(); t = User.query.filter_by(username='giaovien').first()
-    if t and not SiteSetting.query.filter_by(owner_id=t.id).first():
-        db.session.add(SiteSetting(owner_id=t.id, teacher_label=t.full_name)); db.session.commit()
+    # Tạo Admin riêng
+    admin_u = User.query.filter_by(username=DEFAULT_ADMIN_USERNAME).first()
+    if not admin_u:
+        admin_u = User(
+            username=DEFAULT_ADMIN_USERNAME,
+            password_hash=generate_password_hash(DEFAULT_ADMIN_PASSWORD),
+            full_name=DEFAULT_ADMIN_NAME,
+            role='admin'
+        )
+        db.session.add(admin_u)
+        db.session.flush()
+        db.session.add(SiteSetting(owner_id=admin_u.id, teacher_label=DEFAULT_ADMIN_NAME))
+
+    # Tạo tài khoản giáo viên mặc định riêng
+    teacher_u = User.query.filter_by(username='giaovien').first()
+    if not teacher_u:
+        teacher_u = User(
+            username='giaovien',
+            password_hash=generate_password_hash('123456'),
+            full_name='Giáo viên Toán',
+            role='teacher'
+        )
+        db.session.add(teacher_u)
+        db.session.flush()
+        db.session.add(SiteSetting(owner_id=teacher_u.id, teacher_label=teacher_u.full_name))
+    else:
+        if teacher_u.username != DEFAULT_ADMIN_USERNAME:
+            teacher_u.role = 'teacher'
+
+    db.session.flush()
+
+    # Chỉ tạo lớp mẫu khi database mới hoàn toàn
+    if Classroom.query.count() == 0:
+        db.session.add_all([
+            Classroom(name='6A1', grade='6', teacher_id=teacher_u.id),
+            Classroom(name='7A1', grade='7', teacher_id=teacher_u.id),
+            Classroom(name='8A1', grade='8', teacher_id=teacher_u.id),
+            Classroom(name='9A1', grade='9', teacher_id=teacher_u.id)
+        ])
+    db.session.commit()
 
 with app.app_context():
     db.create_all(); ensure_v70_schema(); run_v8_migrations(); seed(); classify_existing_builtin_questions(); repair_k12_fraction_equations()
@@ -1605,7 +2563,7 @@ with app.app_context():
 def health():
     return {
         'status': 'ok',
-        'version': '8.0-online',
+        'version': '9.1.6-user-permissions-model-fix',
         'timezone': APP_TIMEZONE,
         'database': 'postgresql' if str(app.config['SQLALCHEMY_DATABASE_URI']).startswith('postgresql') else 'sqlite'
     }, 200
@@ -1614,7 +2572,7 @@ def health():
 def ready():
     try:
         db.session.execute(text('SELECT 1'))
-        return {'status': 'ready', 'version': '8.0-online'}, 200
+        return {'status': 'ready', 'version': '9.1.6-user-permissions-model-fix'}, 200
     except Exception as e:
         db.session.rollback()
         return {'status': 'not-ready', 'error': str(e)[:160]}, 503

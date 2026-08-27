@@ -1,11 +1,12 @@
 {% extends 'base.html' %}{% block heading %}Tạo bài kiểm tra{% endblock %}{% block content %}
 <div class="card" style="max-width:950px"><h2>Tạo bài kiểm tra mới</h2><div class="notice"><b>Soạn đề bằng Word:</b> <a class="btn green" href="/teacher/word-template">⬇ TẢI MẪU WORD CHUẨN</a> &nbsp; Tải mẫu, nhập câu hỏi rồi upload ở trang Soạn đề.</div>
 <div class="notice"><b>V6:</b> Có thể giao cùng một đề cho nhiều lớp. Điểm được tự quy đổi về thang điểm bạn chọn.</div>
-<form method="post"><label>Tên bài</label><input name="title" required><label>Mô tả</label><textarea name="description"></textarea>
+<form method="post"><label>Môn học</label><select name="subject"><option value="Toán">Toán</option><option value="Tin học">Tin học</option><option value="Toán tiếng Anh">Toán tiếng Anh</option></select><label>Tên bài</label><input name="title" required><label>Mô tả</label><textarea name="description"></textarea>
 <label>Giao cho các lớp</label><div class="class-checks">{% for c in classes %}<label><input type="checkbox" name="classroom_ids" value="{{c.id}}"> {{c.name}}</label>{% endfor %}</div>
 <div class="grid2"><div><label>Thời gian bắt đầu</label><input type="datetime-local" name="starts_at"></div><div><label>Thời gian kết thúc</label><input type="datetime-local" name="due_at"></div></div>
 <div class="grid2"><div><label>Thời gian làm bài (phút)</label><input type="number" name="duration_minutes" value="45" min="1"></div><div><label>Thang điểm toàn bài</label><input type="number" name="score_scale" value="10" step="0.1" min="0.1"><small class="muted">Ví dụ: 10 hoặc 100. Trọng số từng câu sẽ tự quy đổi.</small></div></div>
 <p><label><input type="checkbox" name="shuffle_questions"> Trộn thứ tự câu hỏi</label> &nbsp; <label><input type="checkbox" name="shuffle_options"> Trộn đáp án</label></p>
-<p><label><input type="checkbox" name="show_result" checked> Hiển thị điểm trắc nghiệm sau khi nộp</label></p>
+<input type="hidden" name="show_result" value="">
+<p><label><input type="checkbox" name="show_answers"> Cho học sinh xem đáp án đúng sau khi nộp</label> <span class="muted">(không chọn nếu muốn giữ đáp án để luyện/kiểm tra lại)</span></p>
 <p><label><input type="checkbox" name="allow_retake"> Cho phép học sinh làm lại</label> <span class="muted">(bỏ chọn để chống làm lại)</span></p>
 <p><label><input type="checkbox" name="is_published"> Giao bài ngay</label></p><button>Tạo bài và soạn đề</button></form></div>{% endblock %}

@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block heading %}Quản lý & phân quyền giáo viên{% endblock %}
+{% block content %}
+<div class="grid2">
+  <div class="card">
+    <h3>➕ Tạo tài khoản giáo viên</h3>
+    <form method="post">
+      <label>Họ tên giáo viên</label><input name="full_name" required placeholder="Nguyễn Văn A">
+      <label>Tên đăng nhập</label><input name="username" required placeholder="gvtoan7">
+      <label>Email Google (không bắt buộc)</label><input name="email" type="email" placeholder="giaovien@gmail.com">
+      <label>Mật khẩu ban đầu</label><input name="password" required value="123456">
+
+      <h4>Quyền ban đầu</h4>
+      <label><input type="checkbox" name="perm_classes" checked> Quản lý lớp</label><br>
+      <label><input type="checkbox" name="perm_students" checked> Quản lý học sinh</label><br>
+      <label><input type="checkbox" name="perm_question_bank" checked> Ngân hàng câu hỏi</label><br>
+      <label><input type="checkbox" name="perm_assignments" checked> Tạo / giao bài kiểm tra</label><br>
+      <label><input type="checkbox" name="perm_lessons" checked> Bài giảng</label><br>
+      <label><input type="checkbox" name="perm_grades" checked> Xem / chấm điểm</label><br><br>
+      <button class="green">Tạo giáo viên</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>👨‍🏫 Danh sách giáo viên</h3>
+    {% for t in teachers %}
+    <div class="q" style="margin-bottom:14px">
+      <b>{{t.full_name}}</b> — <code>{{t.username}}</code>
+      {% if t.role=='admin' %}
+        <span class="badge">ADMIN</span>
+        <p class="muted">Admin luôn có toàn bộ quyền.</p>
+      {% else %}
+        <form method="post" action="/admin/teacher/{{t.id}}/permissions">
+          <div class="grid2">
+            <label><input type="checkbox" name="perm_classes" {% if t.perm_classes %}checked{% endif %}> Quản lý lớp</label>
+            <label><input type="checkbox" name="perm_students" {% if t.perm_students %}checked{% endif %}> Quản lý học sinh</label>
+            <label><input type="checkbox" name="perm_question_bank" {% if t.perm_question_bank %}checked{% endif %}> Ngân hàng câu hỏi</label>
+            <label><input type="checkbox" name="perm_assignments" {% if t.perm_assignments %}checked{% endif %}> Tạo / giao bài</label>
+            <label><input type="checkbox" name="perm_lessons" {% if t.perm_lessons %}checked{% endif %}> Bài giảng</label>
+            <label><input type="checkbox" name="perm_grades" {% if t.perm_grades %}checked{% endif %}> Xem / chấm điểm</label>
+          </div>
+          <button class="green" style="margin-top:8px">Lưu phân quyền</button>
+        </form>
+        <div style="margin-top:8px">
+          <form method="post" action="/admin/teacher/{{t.id}}/reset" style="display:inline">
+            <input type="hidden" name="password" value="123456">
+            <button class="orange">Reset mật khẩu</button>
+          </form>
+          <form method="post" action="/admin/teacher/{{t.id}}/delete" style="display:inline" onsubmit="return confirm('Xóa giáo viên này?')">
+            <button class="red">Xóa giáo viên</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

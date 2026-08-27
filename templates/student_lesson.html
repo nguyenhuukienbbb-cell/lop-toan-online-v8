@@ -1,1 +1,30 @@
-{% extends 'base.html' %}{% block heading %}Bài giảng{% endblock %}{% block content %}<div class="card"><h1>{{lesson.title}}</h1><p class="muted">{{lesson.description}}</p><div style="white-space:pre-wrap;line-height:1.65">{{lesson.content}}</div>{% if lesson.resource_url %}<p><a class="btn" href="{{lesson.resource_url}}" target="_blank">Mở tài liệu / video</a></p>{% endif %}</div>{% endblock %}
+{% extends 'base.html' %}
+{% block heading %}Bài giảng{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>{{lesson.title}}</h1>
+  <p><span class="badge">{{lesson.subject or 'Toán'}}</span></p>
+  <p class="muted">{{lesson.description}}</p>
+  <div style="white-space:pre-wrap;line-height:1.65">{{lesson.content}}</div>
+
+  {% if lesson.file_name %}
+    <hr>
+    <h3>📎 Tài liệu bài giảng</h3>
+    <p><b>{{lesson.file_name}}</b></p>
+    {% if lesson.preview_pdf_path %}
+      <p>
+        <a class="btn green" href="/lesson/{{lesson.id}}/file/preview" target="_blank">Mở toàn màn hình</a>
+        <a class="btn" href="/lesson/{{lesson.id}}/file/original?download=1">Tải file gốc</a>
+      </p>
+      <iframe src="/lesson/{{lesson.id}}/file/preview" style="width:100%;height:75vh;border:1px solid #ddd;border-radius:10px" title="Xem bài giảng"></iframe>
+    {% else %}
+      <p class="muted">File này chưa có bản PDF xem trực tiếp.</p>
+      <a class="btn" href="/lesson/{{lesson.id}}/file/original?download=1">⬇ Tải file bài giảng</a>
+    {% endif %}
+  {% endif %}
+
+  {% if lesson.resource_url %}
+    <p><a class="btn" href="{{lesson.resource_url}}" target="_blank">🔗 Mở tài liệu / video</a></p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,1 +1,40 @@
-{% extends 'base.html' %}{% block heading %}Chấm bài tự luận{% endblock %}{% block content %}<div class="card"><h2>{{assignment.title}}</h2><p>Học sinh: <b>{{student.full_name}}</b> · Điểm hiện tại: <b>{{submission.total_score}} / {{submission.max_score}}</b></p><form method="post">{% for ans,q,qmax in data %}<div class="q"><b>Câu {{loop.index}} — tối đa {{qmax|round(2)}} điểm</b><p class="mathtext">{{q.content|rich}}</p>{% if q.image_path %}<img class="qimg" src="/media/{{q.image_path}}">{% endif %}<p><b>Bài làm:</b></p><div class="option mathtext">{{ans.answer_text or '(Không trả lời)'}}</div>{% if q.qtype in ['mcq','short'] %}<p>Điểm tự động: <b>{{ans.auto_score|round(2)}} / {{qmax|round(2)}}</b> · Đáp án đúng: {{q.correct_answer}}</p>{% else %}<label>Điểm tự luận</label><input type="number" step="0.01" min="0" max="{{qmax}}" name="score_{{ans.id}}" value="{{ans.manual_score}}"><label>Nhận xét</label><textarea name="note_{{ans.id}}">{{ans.teacher_note}}</textarea>{% endif %}</div>{% endfor %}<button class="green">Lưu điểm tự luận</button></form></div>{% endblock %}
+{% extends 'base.html' %}
+{% block heading %}Xem / chấm bài{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>{{assignment.title}}</h2>
+  <p>Học sinh: <b>{{student.full_name}}</b> · Điểm hiện tại: <b>{{submission.total_score}} / {{submission.max_score}}</b></p>
+  <p class="muted">Câu trắc nghiệm/trả lời ngắn được hệ thống chấm tự động. Giáo viên chấm phần tự luận ở bên dưới.</p>
+  <form method="post">
+  {% for ans,q,qmax in data %}
+    <div class="q">
+      <b>Câu {{loop.index}} — tối đa {{qmax|round(2)}} điểm</b>
+      <p class="mathtext">{{q.content|rich}}</p>
+      {% if q.image_path %}<img class="qimg" src="/media/{{q.image_path}}">{% endif %}
+
+      {% if q.qtype=='mcq' %}
+        {% set selected = ans.answer_text|upper %}
+        <p><b>Học sinh chọn:</b> {{selected or '(Không chọn)'}}
+          {% if selected=='A' %}. <span class="mathtext">{{q.option_a|rich}}</span>{% endif %}
+          {% if selected=='B' %}. <span class="mathtext">{{q.option_b|rich}}</span>{% endif %}
+          {% if selected=='C' %}. <span class="mathtext">{{q.option_c|rich}}</span>{% endif %}
+          {% if selected=='D' %}. <span class="mathtext">{{q.option_d|rich}}</span>{% endif %}
+        </p>
+        <p><b>Đáp án đúng:</b> {{q.correct_answer}} · Điểm tự động: <b>{{ans.auto_score|round(2)}} / {{qmax|round(2)}}</b></p>
+      {% elif q.qtype=='short' %}
+        <p><b>Học sinh trả lời:</b> {{ans.answer_text or '(Không trả lời)'}}</p>
+        <p><b>Đáp án đúng:</b> {{q.correct_answer}} · Điểm tự động: <b>{{ans.auto_score|round(2)}} / {{qmax|round(2)}}</b></p>
+      {% else %}
+        <p><b>Bài làm tự luận:</b></p>
+        <div class="option mathtext">{{ans.answer_text or '(Không trả lời)'}}</div>
+        <label>Điểm tự luận</label>
+        <input type="number" step="0.01" min="0" max="{{qmax}}" name="score_{{ans.id}}" value="{{ans.manual_score}}">
+        <label>Nhận xét</label>
+        <textarea name="note_{{ans.id}}">{{ans.teacher_note}}</textarea>
+      {% endif %}
+    </div>
+  {% endfor %}
+  <button class="green">Lưu điểm tự luận</button>
+  </form>
+</div>
+{% endblock %}

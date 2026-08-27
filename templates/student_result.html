@@ -1,1 +1,36 @@
-{% extends 'base.html' %}{% block heading %}Kết quả{% endblock %}{% block content %}<div class="card"><h2>{{assignment.title}}</h2><p>Bài đã được nộp.</p>{% if assignment.show_result %}<p>Điểm hiện tại: <b>{{submission.total_score}} / {{submission.max_score}}</b></p><p class="muted">Điểm tự luận có thể thay đổi sau khi giáo viên chấm.</p>{% endif %}{% if assignment.allow_retake %}<form method="post" action="/student/assignment/{{assignment.id}}/retake"><button class="orange">Làm lại bài</button></form>{% endif %}<a class="btn" href="/student">Quay lại</a></div>{% endblock %}
+{% extends 'base.html' %}
+{% block heading %}Kết quả{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>{{assignment.title}}</h2>
+  <p><b>✅ Bài đã được nộp thành công.</b></p>
+  <p class="muted">Giáo viên sẽ xem kết quả và chấm phần tự luận nếu có.</p>
+  {% if assignment.allow_retake %}
+    <form method="post" action="/student/assignment/{{assignment.id}}/retake"><button class="orange">Làm lại bài</button></form>
+  {% endif %}
+  <a class="btn" href="/student">Quay lại</a>
+</div>
+
+{% if assignment.show_answers and review %}
+<div class="card">
+  <h3>🔎 Xem lại đáp án</h3>
+  {% for row in review %}
+    {% set q=row.question %}{% set ans=row.answer %}
+    <div class="q">
+      <b>Câu {{loop.index}}</b>
+      <p class="mathtext">{{q.content|rich}}</p>
+      {% if q.image_path %}<img class="qimg" src="/media/{{q.image_path}}">{% endif %}
+      <p><b>Bài làm:</b>
+        {% if q.qtype=='mcq' %}
+          {{ans.answer_text or '(Không chọn)'}}{% if row.selected_text %}. <span class="mathtext">{{row.selected_text|rich}}</span>{% endif %}
+        {% else %}
+          {{ans.answer_text or '(Không trả lời)'}}
+        {% endif %}
+      </p>
+      {% if row.is_objective %}<p><b>Đáp án đúng:</b> {{q.correct_answer}}</p>{% endif %}
+      {% if ans.teacher_note %}<p><b>Nhận xét giáo viên:</b> {{ans.teacher_note}}</p>{% endif %}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

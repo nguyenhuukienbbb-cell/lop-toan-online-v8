@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block heading %}Quản lý giáo viên{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>⚠️ Không mở được phần Quản lý giáo viên</h2>
+  <p>Hệ thống đã bắt được lỗi thay vì hiển thị trang Internal Server Error.</p>
+  <div class="notice" style="white-space:pre-wrap;word-break:break-word">
+    <b>Chi tiết lỗi:</b><br>{{error_message}}
+  </div>
+  <p class="muted">Bạn có thể chụp màn hình phần “Chi tiết lỗi” này gửi lại để xử lý tiếp nếu cần.</p>
+  <a class="btn" href="/teacher">Quay lại trang chính</a>
+</div>
+{% endblock %}

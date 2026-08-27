@@ -1,1 +1,37 @@
-{% extends 'base.html' %}{% block public %}<div class="login-wrap"><div class="login"><div class="card" style="text-align:center"><h2>✅ Đã nộp bài</h2>{% if show_result %}<p>Điểm trắc nghiệm hệ thống tự chấm: <b>{{score}} / {{max_score}}</b></p>{% else %}<p>Bài đã được ghi nhận.</p>{% endif %}<p class="muted">Phần tự luận sẽ do giáo viên chấm. Tài khoản đã tự đăng xuất.</p><a class="btn" href="/login">Về trang đăng nhập</a></div></div></div>{% endblock %}
+{% extends 'base.html' %}
+{% block public %}
+<div class="login-wrap"><div class="login">
+<div class="card" style="text-align:center">
+  <h2>✅ Đã nộp bài thành công</h2>
+  <p>Bài làm của em đã được hệ thống ghi nhận.</p>
+  <p class="muted">Giáo viên sẽ xem kết quả và chấm phần tự luận nếu có.</p>
+</div>
+
+{% if show_answers and review %}
+<div class="card">
+  <h3>🔎 Xem lại đáp án</h3>
+  <p class="muted">Giáo viên đã cho phép xem đáp án đúng của bài này.</p>
+  {% for row in review %}
+    {% set q=row.question %}{% set ans=row.answer %}
+    <div class="q">
+      <b>Câu {{loop.index}}</b>
+      <p class="mathtext">{{q.content|rich}}</p>
+      {% if q.image_path %}<img class="qimg" src="/media/{{q.image_path}}">{% endif %}
+      <p><b>Bài làm của em:</b>
+        {% if q.qtype=='mcq' %}
+          {{ans.answer_text or '(Không chọn)'}}{% if row.selected_text %}. <span class="mathtext">{{row.selected_text|rich}}</span>{% endif %}
+        {% else %}
+          {{ans.answer_text or '(Không trả lời)'}}
+        {% endif %}
+      </p>
+      {% if row.is_objective %}
+        <p><b>Đáp án đúng:</b> {{q.correct_answer}}</p>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="card" style="text-align:center"><a class="btn" href="/login">Về trang đăng nhập</a></div>
+</div></div>
+{% endblock %}

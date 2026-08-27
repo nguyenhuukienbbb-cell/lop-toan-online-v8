@@ -1,1 +1,62 @@
-{% extends 'base.html' %}{% block heading %}Bài giảng{% endblock %}{% block content %}<div class="grid2"><div class="card"><h3>Tạo bài giảng</h3><form method="post"><label>Tiêu đề</label><input name="title" required><label>Lớp</label><select name="classroom_id">{% for c in classes %}<option value="{{c.id}}">{{c.name}}</option>{% endfor %}</select><label>Mô tả</label><textarea name="description"></textarea><label>Nội dung bài giảng</label><textarea name="content" rows="9" placeholder="Nhập lý thuyết, ví dụ, hướng dẫn..."></textarea><label>Liên kết tài liệu/video</label><input name="resource_url" placeholder="https://..."><label><input type="checkbox" name="is_published"> Xuất bản cho học sinh</label><br><br><button>Tạo bài giảng</button></form></div><div class="card"><h3>Bài giảng đã tạo</h3>{% for x in lessons %}<div class="q"><b>{{x.title}}</b> <span class="badge">{{'Đã giao' if x.is_published else 'Bản nháp'}}</span><p class="muted">{{x.description}}</p><form method="post" action="/teacher/lesson/{{x.id}}/delete" onsubmit="return confirm('Xóa bài giảng?')"><button class="red">Xóa</button></form></div>{% else %}<p>Chưa có bài giảng.</p>{% endfor %}</div></div>{% endblock %}
+{% extends 'base.html' %}
+{% block heading %}Bài giảng{% endblock %}
+{% block content %}
+<div class="grid2">
+  <div class="card">
+    <h3>📚 Tạo bài giảng</h3>
+    <form method="post" enctype="multipart/form-data">
+      <label>Môn học</label>
+      <select name="subject"><option>Toán</option><option>Tin học</option><option>Toán tiếng Anh</option></select>
+
+      <label>Tiêu đề</label>
+      <input name="title" required>
+
+      <label>Giao cho lớp</label>
+      <select name="classroom_id" required>
+        {% for c in classes %}<option value="{{c.id}}">{{c.name}}</option>{% endfor %}
+      </select>
+
+      <label>Mô tả</label>
+      <textarea name="description"></textarea>
+
+      <label>Nội dung bài giảng</label>
+      <textarea name="content" rows="8" placeholder="Nhập lý thuyết, ví dụ, hướng dẫn..."></textarea>
+
+      <label>File bài giảng</label>
+      <input type="file" name="lesson_file" accept=".ppt,.pptx,.pdf,.doc,.docx">
+      <p class="muted">Hỗ trợ PowerPoint, PDF và Word. PowerPoint/Word sẽ được chuyển sang PDF để xem trực tiếp nếu máy chủ chuyển đổi thành công.</p>
+
+      <label>Liên kết tài liệu / video (không bắt buộc)</label>
+      <input name="resource_url" placeholder="https://...">
+
+      <label><input type="checkbox" name="is_published"> Xuất bản cho học sinh</label><br><br>
+      <button class="green">Tạo bài giảng</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>📂 Bài giảng đã tạo</h3>
+    {% for x in lessons %}
+      <div class="q">
+        <b>{{x.title}}</b>
+        <span class="badge">{{x.subject or 'Toán'}}</span>
+        <span class="badge">{{'Đã giao' if x.is_published else 'Bản nháp'}}</span>
+        <p class="muted">{{x.description}}</p>
+        {% if x.file_name %}
+          <p>📎 <b>{{x.file_name}}</b></p>
+          {% if x.preview_pdf_path %}
+            <a class="btn" href="/lesson/{{x.id}}/file/preview" target="_blank">👁 Xem trực tiếp</a>
+          {% endif %}
+          <a class="btn" href="/lesson/{{x.id}}/file/original?download=1">⬇ Tải file gốc</a>
+        {% endif %}
+        {% if x.resource_url %}<a class="btn" href="{{x.resource_url}}" target="_blank">🔗 Mở liên kết</a>{% endif %}
+        <form method="post" action="/teacher/lesson/{{x.id}}/delete" onsubmit="return confirm('Xóa bài giảng và file đính kèm?')" style="margin-top:8px">
+          <button class="red">Xóa</button>
+        </form>
+      </div>
+    {% else %}
+      <p>Chưa có bài giảng.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
