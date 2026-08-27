@@ -2264,6 +2264,56 @@ def classify_existing_builtin_questions():
 
 
 
+
+def bootstrap_user_permission_columns():
+    """
+    Chạy TRƯỚC toàn bộ migration có thể dùng ORM User.
+    Đặc biệt migration_830 dùng User.query, nên PostgreSQL phải có sẵn
+    các cột perm_* trước khi SQLAlchemy SELECT bảng user.
+    """
+    try:
+        insp = inspect(db.engine)
+        cols = {c['name'] for c in insp.get_columns('user')}
+        permission_columns = [
+            'perm_classes',
+            'perm_students',
+            'perm_question_bank',
+            'perm_assignments',
+            'perm_lessons',
+            'perm_grades',
+        ]
+
+        for col in permission_columns:
+            if col not in cols:
+                db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN {col} BOOLEAN'))
+                db.session.commit()
+
+        # Giáo viên/Admin cũ giữ toàn bộ quyền; học sinh không có quyền giáo viên.
+        for col in permission_columns:
+            db.session.execute(
+                text(
+                    f'UPDATE "user" SET {col}=1 '
+                    f'WHERE role IN (:teacher_role, :admin_role) AND {col} IS NULL'
+                ),
+                {'teacher_role': 'teacher', 'admin_role': 'admin'}
+            )
+            db.session.execute(
+                text(
+                    f'UPDATE "user" SET {col}=0 '
+                    f'WHERE role=:student_role AND {col} IS NULL'
+                ),
+                {'student_role': 'student'}
+            )
+
+        db.session.commit()
+        print('BOOTSTRAP permissions: OK')
+        return True
+    except Exception as e:
+        db.session.rollback()
+        print('BOOTSTRAP permissions ERROR:', e)
+        raise
+
+
 def run_v8_migrations():
     """
     Migration nhẹ, chạy an toàn nhiều lần.
@@ -2309,24 +2359,26 @@ def run_v8_migrations():
         migrations.append((820, migration_820))
 
         def migration_830():
-            # Tạo tài khoản quản trị riêng. Tài khoản "giaovien" trở lại vai trò giáo viên.
-            admin_user = User.query.filter_by(username=DEFAULT_ADMIN_USERNAME).first()
-            if not admin_user:
-                admin_user = User(
-                    username=DEFAULT_ADMIN_USERNAME,
-                    password_hash=generate_password_hash(DEFAULT_ADMIN_PASSWORD),
-                    full_name=DEFAULT_ADMIN_NAME,
-                    role='admin'
-                )
-                db.session.add(admin_user)
-                db.session.flush()
-                db.session.add(SiteSetting(owner_id=admin_user.id, teacher_label=DEFAULT_ADMIN_NAME))
-            else:
-                admin_user.role = 'admin'
+            # Không dùng ORM User tại đây vì database cũ có thể thiếu các cột model mới.
+            admin_row = db.session.execute(
+                text('SELECT id FROM "user" WHERE username=:username LIMIT 1'),
+                {'username': DEFAULT_ADMIN_USERNAME}
+            ).fetchone()
 
-            old_teacher = User.query.filter_by(username='giaovien').first()
-            if old_teacher and old_teacher.username != DEFAULT_ADMIN_USERNAME:
-                old_teacher.role = 'teacher'
+            if admin_row:
+                db.session.execute(
+                    text('UPDATE "user" SET role=:role WHERE id=:uid'),
+                    {'role': 'admin', 'uid': int(admin_row[0])}
+                )
+            else:
+                # Việc tạo Admin mới được seed() xử lý sau khi toàn bộ migration hoàn tất.
+                pass
+
+            if DEFAULT_ADMIN_USERNAME != 'giaovien':
+                db.session.execute(
+                    text('UPDATE "user" SET role=:role WHERE username=:username'),
+                    {'role': 'teacher', 'username': 'giaovien'}
+                )
 
         migrations.append((830, migration_830))
 
@@ -2557,13 +2609,20 @@ def seed():
     db.session.commit()
 
 with app.app_context():
-    db.create_all(); ensure_v70_schema(); run_v8_migrations(); seed(); classify_existing_builtin_questions(); repair_k12_fraction_equations()
+    db.create_all()
+    # QUAN TRỌNG: tạo perm_* trước migration_830 vì migration đó dùng User.query.
+    bootstrap_user_permission_columns()
+    ensure_v70_schema()
+    run_v8_migrations()
+    seed()
+    classify_existing_builtin_questions()
+    repair_k12_fraction_equations()
 
 @app.route('/health')
 def health():
     return {
         'status': 'ok',
-        'version': '9.1.6-user-permissions-model-fix',
+        'version': '9.1.7-render-boot-migration-fix',
         'timezone': APP_TIMEZONE,
         'database': 'postgresql' if str(app.config['SQLALCHEMY_DATABASE_URI']).startswith('postgresql') else 'sqlite'
     }, 200
@@ -2572,7 +2631,7 @@ def health():
 def ready():
     try:
         db.session.execute(text('SELECT 1'))
-        return {'status': 'ready', 'version': '9.1.6-user-permissions-model-fix'}, 200
+        return {'status': 'ready', 'version': '9.1.7-render-boot-migration-fix'}, 200
     except Exception as e:
         db.session.rollback()
         return {'status': 'not-ready', 'error': str(e)[:160]}, 503
