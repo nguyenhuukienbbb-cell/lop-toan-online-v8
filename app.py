@@ -1123,11 +1123,11 @@ def ensure_teacher_permission_schema():
         # Giáo viên/Admin cũ mặc định được giữ toàn bộ quyền để không mất chức năng.
         for col in permission_columns:
             db.session.execute(
-                text(f'UPDATE "user" SET {col}=1 WHERE role IN (:teacher_role, :admin_role) AND ({col} IS NULL)'),
+                text(f'UPDATE "user" SET {col}=TRUE WHERE role IN (:teacher_role, :admin_role) AND ({col} IS NULL)'),
                 {'teacher_role': 'teacher', 'admin_role': 'admin'}
             )
             db.session.execute(
-                text(f'UPDATE "user" SET {col}=0 WHERE role=:student_role AND ({col} IS NULL)'),
+                text(f'UPDATE "user" SET {col}=FALSE WHERE role=:student_role AND ({col} IS NULL)'),
                 {'student_role': 'student'}
             )
         db.session.commit()
@@ -2297,14 +2297,14 @@ def bootstrap_user_permission_columns():
         for col in permission_columns:
             db.session.execute(
                 text(
-                    f'UPDATE "user" SET {col}=1 '
+                    f'UPDATE "user" SET {col}=TRUE '
                     f'WHERE role IN (:teacher_role, :admin_role) AND {col} IS NULL'
                 ),
                 {'teacher_role': 'teacher', 'admin_role': 'admin'}
             )
             db.session.execute(
                 text(
-                    f'UPDATE "user" SET {col}=0 '
+                    f'UPDATE "user" SET {col}=FALSE '
                     f'WHERE role=:student_role AND {col} IS NULL'
                 ),
                 {'student_role': 'student'}
@@ -2544,12 +2544,12 @@ def run_v8_migrations():
 
             for col in permission_columns:
                 db.session.execute(
-                    text(f'UPDATE "user" SET {col}=1 '
+                    text(f'UPDATE "user" SET {col}=TRUE '
                          f'WHERE role IN (:teacher_role,:admin_role) AND {col} IS NULL'),
                     {'teacher_role':'teacher','admin_role':'admin'}
                 )
                 db.session.execute(
-                    text(f'UPDATE "user" SET {col}=0 '
+                    text(f'UPDATE "user" SET {col}=FALSE '
                          f'WHERE role=:student_role AND {col} IS NULL'),
                     {'student_role':'student'}
                 )
@@ -2627,7 +2627,7 @@ with app.app_context():
 def health():
     return {
         'status': 'ok',
-        'version': '9.1.8-postgres-boolean-fix',
+        'version': '9.1.9-all-postgres-boolean-fix',
         'timezone': APP_TIMEZONE,
         'database': 'postgresql' if str(app.config['SQLALCHEMY_DATABASE_URI']).startswith('postgresql') else 'sqlite'
     }, 200
@@ -2636,7 +2636,7 @@ def health():
 def ready():
     try:
         db.session.execute(text('SELECT 1'))
-        return {'status': 'ready', 'version': '9.1.8-postgres-boolean-fix'}, 200
+        return {'status': 'ready', 'version': '9.1.9-all-postgres-boolean-fix'}, 200
     except Exception as e:
         db.session.rollback()
         return {'status': 'not-ready', 'error': str(e)[:160]}, 503
