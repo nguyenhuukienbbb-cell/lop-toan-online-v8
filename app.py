@@ -291,15 +291,95 @@ def question_score_map(a, questions):
     scale = max(0.01, float(a.score_scale or 10.0))
     return {q.id: round(scale * w / total, 4) for q, w in zip(valid, weights)}
 
+def _guess_image_mime(filename):
+    ext = os.path.splitext(filename or '')[1].lower()
+    return {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+        '.gif': 'image/gif',
+    }.get(ext, 'application/octet-stream')
+
+def save_question_bytes(data, filename, content_type=None):
+    """
+    Lưu ảnh câu hỏi vào Supabase Storage khi chạy online.
+    Khi chạy local thì lưu static/uploads như các bản cũ.
+    """
+    filename = secure_filename(filename or '') or f'q_{uuid.uuid4().hex[:12]}.png'
+    content_type = content_type or _guess_image_mime(filename)
+
+    if _supabase_storage_enabled():
+        key = f'questions/{filename}'
+        url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_STORAGE_BUCKET}/{key}"
+        r = requests.post(
+            url,
+            headers={**_supabase_headers(content_type), 'x-upsert': 'true'},
+            data=data,
+            timeout=60
+        )
+        if r.status_code not in (200, 201):
+            raise RuntimeError(f'Supabase Storage upload ảnh lỗi {r.status_code}: {r.text[:180]}')
+        return 'supabase:' + key
+
+    local_path = os.path.join(app.config['STATIC_UPLOAD_FOLDER'], filename)
+    with open(local_path, 'wb') as out:
+        out.write(data)
+    return filename
+
 def save_uploaded_image(f, prefix='q'):
-    if not f or not getattr(f, 'filename', ''): return ''
+    if not f or not getattr(f, 'filename', ''):
+        return ''
     fn = secure_filename(f.filename)
     ext = os.path.splitext(fn)[1].lower()
     if ext not in ['.png', '.jpg', '.jpeg', '.webp', '.gif']:
         return ''
     name = f'{prefix}_{uuid.uuid4().hex[:12]}{ext}'
-    f.save(os.path.join(app.config['STATIC_UPLOAD_FOLDER'], name))
-    return name
+    raw = f.read()
+    if not raw:
+        return ''
+    return save_question_bytes(raw, name, getattr(f, 'mimetype', None))
+
+def read_question_image_bytes(stored_path):
+    """Đọc ảnh mới từ Supabase hoặc ảnh cũ từ static/uploads."""
+    if not stored_path:
+        return None, None
+
+    # Ảnh mới lưu trong Supabase
+    if stored_path.startswith('supabase:'):
+        key = stored_path[len('supabase:'):].lstrip('/')
+        if not _supabase_storage_enabled():
+            return None, None
+        url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_STORAGE_BUCKET}/{key}"
+        r = requests.get(url, headers=_supabase_headers(), timeout=60)
+        if r.status_code != 200:
+            return None, None
+        return r.content, _guess_image_mime(key)
+
+    # Dạng local:... nếu có
+    if stored_path.startswith('local:'):
+        name = os.path.basename(stored_path[len('local:'):])
+    else:
+        # Dữ liệu cũ chỉ lưu filename wordq_xxx.png / question_xxx.png
+        name = os.path.basename(stored_path)
+
+    local_path = os.path.join(app.config['STATIC_UPLOAD_FOLDER'], name)
+    if os.path.exists(local_path):
+        with open(local_path, 'rb') as f:
+            return f.read(), _guess_image_mime(name)
+
+    # Tương thích trường hợp filename cũ đã được đồng bộ thủ công vào Supabase.
+    if _supabase_storage_enabled():
+        for key in (f'questions/{name}', name):
+            try:
+                url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_STORAGE_BUCKET}/{key}"
+                r = requests.get(url, headers=_supabase_headers(), timeout=30)
+                if r.status_code == 200:
+                    return r.content, _guess_image_mime(name)
+            except Exception:
+                pass
+
+    return None, None
 
 
 LESSON_ALLOWED_EXTENSIONS = {'.ppt', '.pptx', '.pdf', '.doc', '.docx'}
@@ -417,9 +497,7 @@ def save_docx_image(part):
     ext = ext_map.get(ctype, os.path.splitext(str(getattr(part, 'partname', '')))[1] or '.png')
     # Trình duyệt không đọc EMF/WMF tốt; file mẫu MathType có preview PNG/JPG nên ưu tiên phần đó.
     name = f'word_{uuid.uuid4().hex[:12]}{ext}'
-    with open(os.path.join(app.config['STATIC_UPLOAD_FOLDER'], name), 'wb') as out:
-        out.write(part.blob)
-    return name
+    return save_question_bytes(part.blob, name, ctype or None)
 
 def paragraph_rich_text(doc, para, image_cache):
     """Giữ đúng thứ tự chữ + ảnh preview của công thức MathType/Equation trong Word."""
@@ -799,8 +877,9 @@ def render_word_question_images(path):
                 ratio=1800/merged.width
                 merged=merged.resize((1800,max(1,int(merged.height*ratio))),Image.Resampling.LANCZOS)
             fn=f'wordq_{digest}_q{st["qnum"]}.png'
-            merged.save(os.path.join(app.config['STATIC_UPLOAD_FOLDER'],fn),'PNG',optimize=True)
-            result[st['qnum']]=fn
+            buf = BytesIO()
+            merged.save(buf, 'PNG', optimize=True)
+            result[st['qnum']] = save_question_bytes(buf.getvalue(), fn, 'image/png')
         pdf.close()
         return result
 
@@ -1037,6 +1116,27 @@ def ctx():
     return {'me': u, 'site_setting': setting, 'google_enabled': bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
             'now': datetime.now(), 'assignment_class_names': assignment_class_names, 'assignment_status': assignment_status,
             'has_perm': has_perm}
+
+
+@app.route('/media/<path:stored_path>')
+def media_file(stored_path):
+    """
+    Hiển thị ảnh câu hỏi/avatar từ local hoặc Supabase.
+    Route này tương thích cả dữ liệu cũ chỉ lưu filename.
+    """
+    try:
+        data, mime = read_question_image_bytes(stored_path)
+        if data is None:
+            return Response('Image not found', status=404, mimetype='text/plain')
+        return send_file(
+            BytesIO(data),
+            mimetype=mime or 'application/octet-stream',
+            as_attachment=False,
+            download_name=os.path.basename(stored_path.replace('supabase:', '')) or 'image'
+        )
+    except Exception as e:
+        return Response('Image error: ' + str(e)[:160], status=404, mimetype='text/plain')
+
 
 @app.route('/')
 def index():
@@ -2627,7 +2727,7 @@ with app.app_context():
 def health():
     return {
         'status': 'ok',
-        'version': '9.1.9-all-postgres-boolean-fix',
+        'version': '9.2.0-question-image-storage-fix',
         'timezone': APP_TIMEZONE,
         'database': 'postgresql' if str(app.config['SQLALCHEMY_DATABASE_URI']).startswith('postgresql') else 'sqlite'
     }, 200
@@ -2636,7 +2736,7 @@ def health():
 def ready():
     try:
         db.session.execute(text('SELECT 1'))
-        return {'status': 'ready', 'version': '9.1.9-all-postgres-boolean-fix'}, 200
+        return {'status': 'ready', 'version': '9.2.0-question-image-storage-fix'}, 200
     except Exception as e:
         db.session.rollback()
         return {'status': 'not-ready', 'error': str(e)[:160]}, 503
