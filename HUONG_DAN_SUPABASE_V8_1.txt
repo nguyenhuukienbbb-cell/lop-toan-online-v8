@@ -1,0 +1,55 @@
+LỚP TOÁN ONLINE V8.1 FREE - RENDER + SUPABASE
+
+MỤC TIÊU
+- Render Free: chạy website.
+- Supabase Free PostgreSQL: lưu lớp, học sinh, đề, câu hỏi, bài làm, điểm.
+- Supabase Storage: lưu ảnh/công thức/file media mới để không mất khi Render deploy lại.
+- GitHub: lưu mã nguồn.
+
+A. TẠO SUPABASE
+1. Vào https://supabase.com và tạo project mới.
+2. Ghi nhớ Database Password.
+3. Trên Dashboard Supabase bấm Connect.
+4. Chọn SESSION POOLER, port 5432 (không dùng Direct connection vì Render là IPv4-only).
+5. Copy connection string và thay [YOUR-PASSWORD] bằng Database Password.
+6. Vào Project Settings > API (hoặc API Keys):
+   - Copy Project URL -> SUPABASE_URL
+   - Copy service_role / secret service-role key -> SUPABASE_SERVICE_ROLE_KEY
+   KHÔNG đưa service role key cho học sinh và không commit key này lên GitHub.
+
+B. CẬP NHẬT RENDER
+Nếu bạn đã có Web Service V8.0:
+1. Thay mã nguồn repo bằng V8.1 và commit.
+2. Trong Render > Web Service > Environment, đặt:
+   DATABASE_URL = connection string SESSION POOLER của Supabase
+   SUPABASE_URL = Project URL
+   SUPABASE_SERVICE_ROLE_KEY = service role key
+   SUPABASE_STORAGE_BUCKET = lop-toan-media
+   APP_TIMEZONE = Asia/Ho_Chi_Minh
+   COOKIE_SECURE = 1
+3. Xóa/không dùng DATABASE_URL của Render PostgreSQL cũ.
+4. Deploy lại Web Service.
+5. Mở /health. Kết quả đúng sẽ có database=supabase/postgresql và storage=supabase.
+
+Nếu tạo Blueprint mới:
+- render.yaml V8.1 KHÔNG tạo Render database nữa.
+- Render sẽ hỏi DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+
+C. STORAGE
+- V8.1 tự tạo bucket public tên lop-toan-media bằng service role key nếu bucket chưa có.
+- Ảnh đại diện, ảnh câu hỏi, ảnh công thức/ảnh render Word mới được lưu lên Supabase.
+- Khi chạy local mà không cấu hình Supabase, phần mềm tự dùng static/uploads như trước.
+
+D. DỮ LIỆU ĐANG Ở RENDER DATABASE CŨ
+V8.1 không tự sao chép database Render cũ sang Supabase. Nếu đã có dữ liệu thật cần giữ, hãy export/restore trước khi xóa Render database.
+Nếu hiện mới thử nghiệm, có thể để Supabase tạo database sạch và nạp lại học sinh bằng Excel.
+
+E. KIỂM TRA
+- /health: ứng dụng sống + cho biết database/storage.
+- /ready: kiểm tra kết nối database.
+- Sau deploy thử: tạo lớp, nhập 1 học sinh, upload 1 ảnh/câu Word, giao bài và đăng nhập học sinh từ điện thoại.
+
+BẢO MẬT
+- Không commit DATABASE_URL có mật khẩu hoặc SUPABASE_SERVICE_ROLE_KEY lên GitHub.
+- Chỉ nhập chúng trong Render Environment.
+- Đổi mật khẩu giaovien / 123456 trước khi dùng thật.

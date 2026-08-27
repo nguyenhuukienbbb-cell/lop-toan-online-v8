@@ -1,0 +1,57 @@
+LỚP TOÁN ONLINE V8.0 - HƯỚNG DẪN ĐƯA LÊN INTERNET
+
+MỤC TIÊU
+- Học sinh ở nhà truy cập bằng điện thoại/máy tính.
+- Dữ liệu lớp, học sinh, đề, bài làm và điểm nằm trong PostgreSQL.
+- Sau này có thể cập nhật mã nguồn mà không phải tạo lại dữ liệu.
+- Giờ mở/đóng bài dùng múi giờ Asia/Ho_Chi_Minh.
+
+KIẾN TRÚC
+1. GitHub: chứa mã nguồn.
+2. Render Web Service: chạy ứng dụng Flask/Gunicorn.
+3. Render PostgreSQL: chứa dữ liệu lâu dài.
+4. File upload/công thức render: bản V8.0 vẫn lưu trên filesystem ứng dụng.
+   Trên gói máy chủ có filesystem tạm, nên với ảnh/file cần giữ vĩnh viễn lâu dài,
+   nên nâng tiếp sang object storage (S3/R2) hoặc persistent disk trước khi dùng quy mô lớn.
+
+DEPLOY BẰNG RENDER BLUEPRINT
+1. Tạo repository GitHub mới.
+2. Upload TOÀN BỘ nội dung thư mục V8.0 vào repository.
+3. Đăng nhập Render.
+4. Chọn New > Blueprint.
+5. Chọn repository vừa tạo.
+6. Render đọc file render.yaml và tạo:
+   - web service lop-toan-online-v8
+   - PostgreSQL lop-toan-db-v8
+7. Chờ build/deploy hoàn tất.
+8. Mở URL Render cấp, ví dụ:
+   https://lop-toan-online-v8.onrender.com
+9. Đăng nhập giáo viên:
+   giaovien / 123456
+10. ĐỔI MẬT KHẨU giáo viên trước khi cho học sinh sử dụng.
+
+CẬP NHẬT SAU KHI ĐÃ ONLINE
+- Không xóa PostgreSQL.
+- Không tạo database mới khi chỉ cập nhật chức năng.
+- Chỉ cập nhật mã nguồn lên cùng repository.
+- Render deploy lại ứng dụng.
+- V8.0 có bảng app_schema_migration để migration mới có thể chạy một lần và giữ dữ liệu cũ.
+- Trước các nâng cấp lớn, luôn tạo backup PostgreSQL.
+
+BIẾN MÔI TRƯỜNG
+SECRET_KEY        : Render tự sinh.
+DATABASE_URL      : Render lấy từ PostgreSQL.
+APP_TIMEZONE      : Asia/Ho_Chi_Minh.
+COOKIE_SECURE     : 1 khi online.
+GOOGLE_CLIENT_ID  : để trống nếu chưa dùng Google Login.
+GOOGLE_CLIENT_SECRET: để trống nếu chưa dùng Google Login.
+
+KIỂM TRA MÁY CHỦ
+/health : kiểm tra ứng dụng đang sống.
+/ready  : kiểm tra ứng dụng kết nối được database.
+
+LƯU Ý QUAN TRỌNG VỀ FILE WORD / ẢNH
+Cơ sở dữ liệu PostgreSQL giữ tài khoản, đề, điểm và bài làm. Nhưng ảnh render từ Word
+hiện vẫn nằm trong static/uploads. Để dùng lâu dài trên hosting không có persistent disk,
+nên bổ sung object storage ở bản tiếp theo. Đây không ảnh hưởng dữ liệu học sinh/điểm,
+nhưng có thể ảnh hưởng ảnh/công thức đã upload nếu máy chủ bị tạo lại.

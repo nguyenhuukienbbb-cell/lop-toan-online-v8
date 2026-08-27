@@ -1,0 +1,18 @@
+TÍCH HỢP FILE ĐỀ PHÂN SỐ - V6.2
+
+File đã tích hợp riêng:
+CauHoi_PhanSo_CoDapAn_K12Online(1).docx
+
+Cách dùng:
+1. Vào Bài kiểm tra -> Soạn đề.
+2. Bấm nút "+ NẠP ĐỀ PHÂN SỐ MẪU".
+3. Hệ thống thêm 56 mục tự chấm vào đề:
+   - 20 câu trắc nghiệm chọn A/B/C/D.
+   - 31 mệnh đề Đúng/Sai được tách từ câu 21-28.
+   - 5 câu trả lời ngắn (câu 29-33).
+4. Chọn lớp, thời gian bắt đầu/kết thúc rồi bấm GIAO BÀI CHO HỌC SINH.
+
+Lưu ý:
+- Các công thức MathType/Equation trong file gốc đã được chuyển sẵn thành ảnh PNG để hiển thị ổn định trên trình duyệt.
+- Nếu upload đúng chính file này ở mục Word, V6.2 nhận diện bằng mã SHA-256 và tự dùng bộ dữ liệu đã tích hợp, tránh mất công thức.
+- Nếu bấm NẠP nhiều lần, đề sẽ được thêm lặp lại nhiều lần.

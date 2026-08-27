@@ -1,0 +1,15 @@
+LỚP TOÁN ONLINE V6.3
+
+1. Sửa lỗi công thức chồng ký tự ở câu 13 và 14 của đề Phân số mẫu.
+   - Công thức được lấy từ bản Word đã render chuẩn, không ghép lại các ký tự MathType.
+   - Khi mở V6.3 trên dữ liệu V6.2 cũ, chương trình tự sửa hai câu đã nạp, không cần xóa học sinh hay bài làm.
+
+2. Chấm trắc nghiệm tự động
+   - Câu A/B/C/D: so sánh lựa chọn của học sinh với đáp án đúng.
+   - Câu Đúng/Sai: đã được tách thành các mệnh đề và tự chấm như câu trắc nghiệm.
+   - Câu trả lời ngắn: tự chấm theo đáp án đã lưu.
+   - Tự luận: giáo viên chấm thủ công.
+   - Điểm tự động được quy đổi theo thang điểm của đề (mặc định 10).
+
+3. Nâng cấp giữ dữ liệu
+Nếu đang dùng V6.2: sao lưu thư mục instance trước, sau đó chép app.py, templates, static và k12_fraction_sample.json của V6.3 đè lên bản cũ. Không xóa instance/database.

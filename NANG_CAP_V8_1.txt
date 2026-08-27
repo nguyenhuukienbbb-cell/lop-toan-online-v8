@@ -1,0 +1,9 @@
+V8.1 Free Supabase
+
+Thay đổi chính:
+- Có thể dùng Supabase PostgreSQL thay Render PostgreSQL Free 30 ngày.
+- Media mới lưu bền vững trên Supabase Storage.
+- Vẫn chạy local bằng SQLite nếu không cấu hình Supabase.
+- render.yaml không còn tạo database Render.
+
+Nếu đang dùng V8.0 online và database Render có dữ liệu cần giữ: đừng xóa database cũ trước khi sao lưu/chuyển dữ liệu.

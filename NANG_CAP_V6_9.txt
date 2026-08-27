@@ -1,0 +1,20 @@
+LỚP TOÁN ONLINE V6.9 - NGÂN HÀNG 1.000 CÂU
+
+- Tích hợp sẵn gói 1.000 câu Toán lớp 6, 7, 8, 9.
+- Mỗi khối 250 câu:
+  + 180 câu trắc nghiệm A/B/C/D
+  + 40 câu trả lời ngắn
+  + 30 câu tự luận
+- Tổng cộng:
+  + 720 câu trắc nghiệm tự chấm
+  + 160 câu trả lời ngắn tự chấm
+  + 120 câu tự luận giáo viên chấm
+- Có chủ đề theo từng khối và lời giải/đáp án cho câu khách quan.
+- Nút: Ngân hàng câu hỏi > NẠP 1.000 CÂU HỎI MẪU.
+- Bấm lại không nhân đôi gói tích hợp.
+- Thêm bộ lọc: khối, loại câu, chủ đề, từ khóa.
+- Danh sách ngân hàng phân trang 100 câu/trang.
+- Khi soạn đề, phần chọn ngân hàng chỉ hiển thị tối đa 120 câu theo bộ lọc để trang chạy nhẹ hơn.
+
+LƯU Ý
+Ngân hàng tích hợp là bộ câu hỏi khởi đầu do hệ thống tạo, nên giáo viên nên rà soát và điều chỉnh câu chữ/độ khó theo kế hoạch dạy học của mình trước khi giao chính thức.

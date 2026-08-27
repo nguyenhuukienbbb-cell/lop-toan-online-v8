@@ -1,0 +1,21 @@
+NÂNG CẤP TỪ V7.x LÊN V8.0
+
+1. Sao lưu thư mục V7.x hiện tại.
+2. Nếu chỉ chạy LOCAL bằng SQLite:
+   - Có thể chép file database SQLite cũ vào thư mục V8.0.
+   - Đảm bảo DATABASE_URL trỏ đúng file đó.
+   - V8.0 sẽ chạy migration bổ sung mà không xóa dữ liệu.
+3. Nếu đã ONLINE bằng PostgreSQL:
+   - Giữ nguyên DATABASE_URL/PostgreSQL cũ.
+   - Deploy mã nguồn V8.0 lên service hiện tại.
+   - KHÔNG xóa database.
+4. Sau deploy kiểm tra /health và /ready.
+5. Kiểm tra lại 1 tài khoản giáo viên + 1 tài khoản học sinh trước khi giao bài thật.
+
+V8.0 bổ sung:
+- múi giờ Việt Nam cho lịch mở/đóng bài,
+- session cookie an toàn hơn khi HTTPS,
+- migration versioned,
+- index database cho ngân hàng câu hỏi/bài làm,
+- requirements sửa đầy đủ requests + psycopg,
+- install.bat kiểm tra Python 64-bit.

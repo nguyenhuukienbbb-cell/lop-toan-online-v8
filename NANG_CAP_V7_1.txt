@@ -1,0 +1,18 @@
+LỚP TOÁN ONLINE V7.1 - PHÂN MÔN ĐẠI SỐ / HÌNH HỌC
+
+Điểm mới:
+- Ngân hàng câu hỏi có trường Phân môn: Đại số hoặc Hình học.
+- Có thể lọc ngân hàng theo Khối + Phân môn + Mức độ + Loại câu + Chủ đề.
+- Khi nhập Word, giáo viên chọn Phân môn cho file.
+- Khi thêm câu thủ công, giáo viên chọn Phân môn.
+- Khi soạn đề, có thể lọc câu theo Đại số/Hình học.
+- Tạo đề tự động cho phép chọn: Cả hai / Đại số / Hình học.
+- 1.000 câu mẫu được tự phân loại: 820 Đại số, 180 Hình học.
+- Dữ liệu V7.0 cũ được tự nâng cấp, không xóa lớp, học sinh, bài kiểm tra hoặc bài làm.
+
+Cách dùng tạo đề tự động:
+1. Vào Bài kiểm tra > Soạn đề.
+2. Tại Tạo đề tự động, chọn Khối.
+3. Chọn Phân môn: Đại số hoặc Hình học (hoặc cả hai).
+4. Chọn Dễ / Trung bình / Khó và số câu.
+5. Bấm TẠO ĐỀ TỰ ĐỘNG.

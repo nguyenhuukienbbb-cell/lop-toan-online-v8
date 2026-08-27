@@ -1,0 +1,9 @@
+V6.8 - SỬA NÚT TẢI MẪU WORD
+
+- Thêm mục Tải mẫu Word ở menu bên trái của giáo viên.
+- Thêm nút TẢI MẪU WORD SOẠN ĐỀ ngay trên Dashboard.
+- Thêm nút tải mẫu ở trang Tạo bài kiểm tra.
+- Giữ nút tải mẫu ở trang Soạn đề và Ngân hàng câu hỏi.
+- Route /teacher/word-template trả về trực tiếp file mau_de/Mau_De_Toan_TracNghiem_TuLuan.docx.
+
+Nếu đang chạy bản cũ, hãy đóng cửa sổ run.bat/app.py rồi chạy bản V6.8.

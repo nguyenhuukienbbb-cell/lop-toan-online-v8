@@ -1,0 +1,16 @@
+ĐĂNG NHẬP GOOGLE - LỚP TOÁN ONLINE V4
+
+Tính năng Google đã được tích hợp sẵn nhưng cần Client ID và Client Secret của chính bạn.
+
+1. Vào Google Cloud Console và tạo OAuth 2.0 Client ID loại Web application.
+2. Authorized redirect URI khi chạy trên máy: http://127.0.0.1:5000/auth/google/callback
+3. Trên Windows, mở Command Prompt trong thư mục phần mềm và đặt biến môi trường:
+   set GOOGLE_CLIENT_ID=YOUR_CLIENT_ID
+   set GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET
+   python app.py
+
+4. Trong mục Học sinh của ứng dụng, nhập đúng Gmail của học sinh vào ô Email Google.
+5. Học sinh bấm Đăng nhập bằng Google. Chỉ Gmail đã được giáo viên gắn với tài khoản mới được phép vào.
+
+Khi đưa app lên Internet, đổi redirect URI sang tên miền HTTPS thực tế, ví dụ:
+https://ten-mien-cua-ban.com/auth/google/callback

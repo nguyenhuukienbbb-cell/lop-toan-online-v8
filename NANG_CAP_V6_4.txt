@@ -1,0 +1,25 @@
+LỚP TOÁN ONLINE V6.5 – SỬA BỘ NHẬP WORD TỔNG QUÁT
+
+1. Thay đổi chính
+- Không còn ghép từng ảnh MathType/Equation nhỏ.
+- Khi nhập Word, hệ thống render nguyên từng câu theo bố cục Word.
+- Tự che các dòng “Đáp án:” trong ảnh trước khi cho học sinh xem.
+- A/B/C/D hiển thị bằng nút chọn bên dưới ảnh và tự chấm theo đáp án trong Word.
+- Câu Đúng/Sai nhiều mệnh đề được tách để chấm từng mệnh đề.
+- Câu trả lời ngắn được tự chấm sau khi chuẩn hóa khoảng trắng/chữ hoa-thường.
+- Câu tự luận vẫn để giáo viên chấm thủ công.
+
+2. Với dữ liệu V6.3 cũ
+Các câu đã nhập trước đây vẫn giữ dữ liệu cũ. Để áp dụng bộ render mới cho một đề Word, hãy xóa các câu lỗi của đề cũ (hoặc tạo một bài kiểm tra mới) và NHẬP LẠI FILE WORD bằng V6.5.
+
+3. Chạy trên Windows
+- Cài Python và chạy install.bat.
+- Nếu máy có Microsoft Word, V6.5 ưu tiên dùng Word để render đề.
+- Nếu không có Word, cài LibreOffice để hệ thống render công thức.
+
+4. Chấm tự động
+- A/B/C/D: tự chấm.
+- Đúng/Sai: tự chấm từng mệnh đề.
+- Trả lời ngắn: tự chấm theo đáp án trong Word.
+- Tự luận: giáo viên chấm.
+- Điểm tự động được quy đổi theo thang điểm của bài (mặc định 10).

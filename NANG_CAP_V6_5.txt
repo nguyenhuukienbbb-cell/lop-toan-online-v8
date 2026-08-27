@@ -1,0 +1,32 @@
+LỚP TOÁN ONLINE V6.5 – BỘ NHẬP WORD TỔNG QUÁT HƠN
+
+Đã kiểm tra và tích hợp thêm 2 kiểu đề Word thực tế:
+1. BTTN CHƯƠNG III. GÓC VÀ ĐƯỜNG THẲNG TOÁN 7
+   - Đáp án A/B/C/D được đánh dấu bằng gạch chân.
+   - Có câu hình học kèm hình vẽ.
+   - Có câu trả lời ngắn với dòng “Đáp án: ...”.
+   - Có câu đúng/sai nhiều mệnh đề a), b), c), d) trong đó mệnh đề đúng được gạch chân.
+
+2. NGÂN HÀNG CÂU HỎI DỮ LIỆU VÀ BIỂU ĐỒ TOÁN 8
+   - Có phần trắc nghiệm A/B/C/D.
+   - Có phần đúng/sai từng câu.
+   - Có bảng dữ kiện chung cho nhiều câu.
+   - Có phần điền khuyết và trả lời ngắn.
+   - Có bảng đáp án cuối file.
+
+Cải tiến V6.5:
+- Tự đọc đáp án gạch chân nhưng loại bỏ gạch chân trước khi render cho học sinh, tránh lộ đáp án.
+- Tự đọc bảng “Câu / Đáp án” trong Word.
+- Tự đọc đáp án ngắn ở phần BẢNG ĐÁP ÁN.
+- Tự nhận dạng phần ĐÚNG/SAI, ĐIỀN KHUYẾT, TRẢ LỜI NGẮN.
+- Không nhập nhầm phần BẢNG ĐÁP ÁN thành câu hỏi.
+- Nếu có “Dữ kiện chung cho các câu từ ... đến ...”, ảnh dữ kiện được ghép vào các câu liên quan.
+- Giữ hình, biểu đồ và công thức bằng ảnh render Word/PDF.
+- A/B/C/D, Đúng/Sai và trả lời ngắn có đáp án được chấm tự động.
+
+Cách dùng về sau:
+Giáo viên chỉ cần Tạo bài kiểm tra -> Nhập Word vào đề -> chọn file .docx.
+Nếu file dùng một trong các kiểu trình bày nêu trên, hệ thống sẽ tự nhận dạng mà không cần sửa mã cho từng đề.
+
+Lưu ý:
+Các file Word có cấu trúc hoàn toàn khác (ví dụ đáp án nằm trong textbox đặc biệt, ảnh scan toàn trang, hoặc đáp án mã hóa bằng màu không phải underline) có thể cần bổ sung quy tắc mới.

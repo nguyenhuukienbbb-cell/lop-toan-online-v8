@@ -1,0 +1,13 @@
+LỚP TOÁN ONLINE V7.0
+
+MỚI:
+- Ngân hàng 1.000 câu được chia Dễ / Trung bình / Khó.
+- Mỗi khối: 100 câu Dễ, 100 câu Trung bình, 50 câu Khó.
+- Bộ lọc độ khó trong Ngân hàng và Soạn đề.
+- Tạo đề tự động theo khối, số câu, chủ đề và kiểu Dễ/Trung bình/Khó.
+- Đề Dễ: 70% Dễ + 30% Trung bình.
+- Đề Trung bình: 30% Dễ + 50% Trung bình + 20% Khó.
+- Đề Khó: 10% Dễ + 30% Trung bình + 60% Khó.
+- Cơ sở dữ liệu V6.x được tự nâng cấp, không xóa lớp/học sinh/bài làm.
+
+LƯU Ý: Bộ 1.000 câu là ngân hàng mẫu do hệ thống tạo. Phân loại độ khó là phân loại khởi đầu và giáo viên nên rà soát trước kỳ kiểm tra chính thức.

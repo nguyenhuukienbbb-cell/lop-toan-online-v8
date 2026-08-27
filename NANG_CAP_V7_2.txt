@@ -1,0 +1,13 @@
+LỚP TOÁN ONLINE V7.2 - NHẬP HỌC SINH TỪ EXCEL
+
+Mới:
+- Nút Tải mẫu Excel tại trang Học sinh.
+- Upload .xlsx để tạo hàng loạt tài khoản học sinh.
+- Bắt buộc 2 cột: Họ và tên, Lớp.
+- Có thể để trống Tên đăng nhập để hệ thống tự tạo.
+- Mật khẩu trống mặc định 123456.
+- Email Google không bắt buộc.
+- Tùy chọn tự tạo lớp chưa có.
+- Sau khi nhập, hệ thống tải file kết quả gồm tài khoản, mật khẩu và trạng thái từng dòng.
+
+Mẫu đi kèm: mau_de/Mau_Danh_Sach_Hoc_Sinh.xlsx

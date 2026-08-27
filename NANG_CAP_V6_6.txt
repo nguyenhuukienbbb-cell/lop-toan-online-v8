@@ -1,0 +1,15 @@
+LỚP TOÁN ONLINE V6.6 - SỬA TRIỆT ĐỂ BỘ TÁCH CÂU WORD
+
+1. Sửa lỗi ảnh câu bị dính câu trước/câu sau, đặc biệt dạng trả lời ngắn nằm sát nhau hoặc qua trang.
+2. Ranh giới ảnh lấy theo đúng dòng bắt đầu "Câu N" kế tiếp, chỉ chừa lề nhỏ 8pt.
+3. Hỗ trợ câu kéo dài qua nhiều trang.
+4. Dữ kiện chung vẫn được ghép vào các câu liên quan.
+5. Bảng đáp án cuối file không bị đưa vào ảnh đề học sinh.
+6. Dòng "Đáp án:" trong thân đề tiếp tục được che.
+7. Tự cắt khoảng trắng thừa quanh từng câu để ảnh dễ đọc hơn.
+8. Đổi khóa cache ảnh, nên upload lại Word sẽ bắt buộc render bằng thuật toán V6.6, không dùng ảnh lỗi cũ.
+9. Chấm tự động vẫn áp dụng cho A/B/C/D, Đúng/Sai, điền khuyết và trả lời ngắn có đáp án.
+
+LƯU Ý KHI NÂNG CẤP TỪ V6.5:
+- Dữ liệu lớp/học sinh/bài làm cũ có thể giữ nguyên nếu chép app.py + templates/static cần thiết lên thư mục cũ.
+- Những câu đã import trước đó vẫn trỏ tới ảnh cũ trong database. Cách chắc chắn nhất là xóa các câu của đề bị lỗi và upload lại file Word một lần. Sau đó ảnh mới sẽ dùng bộ tách V6.6.

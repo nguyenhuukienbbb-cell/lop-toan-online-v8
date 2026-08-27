@@ -1,0 +1,9 @@
+LỚP TOÁN ONLINE V6.7
+
+- Tích hợp trực tiếp file Word mẫu chuẩn vào phần mềm.
+- Trong Soạn đề và Ngân hàng câu hỏi có nút TẢI MẪU WORD.
+- Mẫu gồm: A/B/C/D, Đúng/Sai, trả lời ngắn, tự luận.
+- Câu có dòng Đáp án: được hệ thống tự chấm; câu có Loại: Tự luận để giáo viên chấm.
+- Không cần chép file mẫu thủ công: file nằm trong thư mục mau_de của phần mềm.
+
+Khuyến nghị: soạn đề mới dựa trên mẫu này để việc tách câu ổn định nhất.

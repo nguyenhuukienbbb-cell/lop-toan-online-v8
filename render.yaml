@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: lop-toan-online-v8-1
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: lop-toan-media
+      - key: APP_TIMEZONE
+        value: Asia/Ho_Chi_Minh
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: MAX_UPLOAD_MB
+        value: "50"
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false

@@ -1,0 +1,39 @@
+ĐƯA LỚP TOÁN ONLINE V6 LÊN INTERNET BẰNG RENDER
+
+1. Tạo tài khoản GitHub tại github.com nếu chưa có.
+2. Tạo một repository mới, ví dụ: lop-toan-online.
+3. Upload TOÀN BỘ các file trong thư mục này lên repository đó.
+   Quan trọng: app.py và render.yaml phải nằm ở thư mục gốc của repository.
+4. Vào render.com, đăng nhập và kết nối với GitHub.
+5. Chọn New > Blueprint.
+6. Chọn repository lop-toan-online.
+7. Render sẽ đọc file render.yaml và tạo:
+   - Web service cho ứng dụng
+   - PostgreSQL database để lưu dữ liệu lâu dài
+8. Ở lần tạo đầu tiên, Render có thể yêu cầu GOOGLE_CLIENT_ID và GOOGLE_CLIENT_SECRET.
+   Nếu chưa dùng Google Login, có thể để trống nếu giao diện cho phép hoặc thêm sau ở Environment.
+9. Chờ quá trình Build/Deploy hoàn tất.
+10. Render sẽ cấp một địa chỉ dạng:
+    https://lop-toan-online.onrender.com
+    Học sinh có thể mở địa chỉ này trên điện thoại hoặc máy tính.
+
+ĐĂNG NHẬP GIÁO VIÊN BAN ĐẦU
+Tài khoản: giaovien
+Mật khẩu: 123456
+Hãy đổi mật khẩu trước khi giao cho học sinh.
+
+BẬT ĐĂNG NHẬP GOOGLE
+1. Vào Google Cloud Console.
+2. Tạo OAuth Client ID loại Web application.
+3. Authorized redirect URI phải là:
+   https://TEN-APP-CUA-BAN.onrender.com/auth/google/callback
+4. Copy Client ID và Client Secret vào Environment của Render:
+   GOOGLE_CLIENT_ID
+   GOOGLE_CLIENT_SECRET
+5. Redeploy ứng dụng.
+6. Trong hệ thống, tài khoản học sinh cần có email trùng với email Google của học sinh.
+
+LƯU Ý
+- Bản V6 dùng PostgreSQL khi chạy trên Render, nên dữ liệu không mất khi web service khởi động lại.
+- Khi chạy trên máy cá nhân, nếu không khai báo DATABASE_URL, ứng dụng vẫn dùng SQLite.
+- SECRET_KEY trên Render được tự tạo ngẫu nhiên bởi render.yaml.

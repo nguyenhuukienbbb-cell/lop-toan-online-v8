@@ -1,0 +1,21 @@
+LỚP TOÁN ONLINE V6.1 - SỬA CHỨC NĂNG GIAO BÀI
+
+Điểm mới:
+1. Có nút xanh "GIAO BÀI CHO HỌC SINH" ngay trong trang Soạn đề.
+2. Có nút "Giao bài" ngay ở danh sách bài kiểm tra.
+3. Sau khi giao có nút "THU HỒI BÀI".
+4. Trạng thái tự động:
+   - Bản nháp: chưa giao cho học sinh.
+   - Chưa mở: đã giao nhưng chưa đến giờ bắt đầu.
+   - Đang diễn ra: học sinh có thể làm bài.
+   - Đã kết thúc: đã qua giờ kết thúc.
+5. Hệ thống không cho giao nếu chưa chọn lớp, chưa có câu hỏi hoặc giờ kết thúc đã qua.
+
+NẾU BẠN ĐANG DÙNG V6 VÀ MUỐN GIỮ DỮ LIỆU:
+- Đóng phần mềm.
+- Sao lưu thư mục cũ trước.
+- Có thể chép app.py và thư mục templates của V6.1 đè lên V6 cũ.
+- KHÔNG xóa thư mục instance của V6 cũ; file cơ sở dữ liệu trong đó chứa lớp, học sinh và đề đã tạo.
+- Sau đó chạy lại run.bat.
+
+Nếu bạn chạy V6.1 như một thư mục mới hoàn toàn thì dữ liệu cũ sẽ không tự đi theo.
