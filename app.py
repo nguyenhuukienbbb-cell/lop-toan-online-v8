@@ -2265,6 +2265,11 @@ def classify_existing_builtin_questions():
 
 
 
+
+def _sql_bool(value):
+    """SQL literal boolean portable for PostgreSQL and SQLite."""
+    return 'TRUE' if value else 'FALSE'
+
 def bootstrap_user_permission_columns():
     """
     Chạy TRƯỚC toàn bộ migration có thể dùng ORM User.
@@ -2406,7 +2411,7 @@ def run_v8_migrations():
             acols = {c['name'] for c in insp4.get_columns('assignment')}
             if 'show_answers' not in acols:
                 db.session.execute(text("ALTER TABLE assignment ADD COLUMN show_answers BOOLEAN"))
-                db.session.execute(text("UPDATE assignment SET show_answers=0 WHERE show_answers IS NULL"))
+                db.session.execute(text("UPDATE assignment SET show_answers=FALSE WHERE show_answers IS NULL"))
             scols = {c['name'] for c in insp4.get_columns('submission')}
             if 'correct_count' not in scols:
                 db.session.execute(text("ALTER TABLE submission ADD COLUMN correct_count INTEGER"))
@@ -2431,9 +2436,9 @@ def run_v8_migrations():
             for col, typ in perm_defs:
                 if col not in ucols:
                     db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN {col} {typ}'))
-                    db.session.execute(text(f'UPDATE "user" SET {col}=1 WHERE role IN (:teacher_role, :admin_role) AND {col} IS NULL'),
+                    db.session.execute(text(f'UPDATE "user" SET {col}=TRUE WHERE role IN (:teacher_role, :admin_role) AND {col} IS NULL'),
                                        {'teacher_role': 'teacher', 'admin_role': 'admin'})
-                    db.session.execute(text(f'UPDATE "user" SET {col}=0 WHERE role=:student_role AND {col} IS NULL'),
+                    db.session.execute(text(f'UPDATE "user" SET {col}=FALSE WHERE role=:student_role AND {col} IS NULL'),
                                        {'student_role': 'student'})
 
         migrations.append((880, migration_880))
@@ -2512,11 +2517,11 @@ def run_v8_migrations():
                     db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN {col} BOOLEAN'))
             for col in permission_columns:
                 db.session.execute(
-                    text(f'UPDATE "user" SET {col}=1 WHERE role IN (:teacher_role, :admin_role) AND {col} IS NULL'),
+                    text(f'UPDATE "user" SET {col}=TRUE WHERE role IN (:teacher_role, :admin_role) AND {col} IS NULL'),
                     {'teacher_role': 'teacher', 'admin_role': 'admin'}
                 )
                 db.session.execute(
-                    text(f'UPDATE "user" SET {col}=0 WHERE role=:student_role AND {col} IS NULL'),
+                    text(f'UPDATE "user" SET {col}=FALSE WHERE role=:student_role AND {col} IS NULL'),
                     {'student_role': 'student'}
                 )
 
@@ -2622,7 +2627,7 @@ with app.app_context():
 def health():
     return {
         'status': 'ok',
-        'version': '9.1.7-render-boot-migration-fix',
+        'version': '9.1.8-postgres-boolean-fix',
         'timezone': APP_TIMEZONE,
         'database': 'postgresql' if str(app.config['SQLALCHEMY_DATABASE_URI']).startswith('postgresql') else 'sqlite'
     }, 200
@@ -2631,7 +2636,7 @@ def health():
 def ready():
     try:
         db.session.execute(text('SELECT 1'))
-        return {'status': 'ready', 'version': '9.1.7-render-boot-migration-fix'}, 200
+        return {'status': 'ready', 'version': '9.1.8-postgres-boolean-fix'}, 200
     except Exception as e:
         db.session.rollback()
         return {'status': 'not-ready', 'error': str(e)[:160]}, 503
