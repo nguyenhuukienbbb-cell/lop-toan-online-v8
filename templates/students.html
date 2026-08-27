@@ -1,0 +1,14 @@
+{% extends 'base.html' %}{% block heading %}Quản lý học sinh{% endblock %}{% block content %}
+<div class="card">
+  <div class="toolbar" style="justify-content:space-between">
+    <div><h3 style="margin:0 0 5px">Nhập học sinh hàng loạt bằng Excel</h3><div class="muted">Chỉ cần Họ và tên + Lớp. Tài khoản có thể để trống để hệ thống tự tạo; mật khẩu trống sẽ dùng 123456.</div></div>
+    <a class="btn green" href="/teacher/students/excel-template">⬇ Tải mẫu Excel</a>
+  </div>
+  <form method="post" action="/teacher/students/import-excel" enctype="multipart/form-data" style="margin-top:14px">
+    <label>Chọn file Excel (.xlsx)</label><input type="file" name="excel_file" accept=".xlsx" required>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="auto_create_class" value="1"> Tự tạo lớp chưa có trong phần mềm</label>
+    <button class="green">⬆ Nhập danh sách học sinh</button>
+  </form>
+  <div class="notice" style="margin-top:12px">Sau khi nhập xong, phần mềm tự tải về một file <b>Kết quả nhập học sinh</b>, trong đó có tài khoản, mật khẩu và trạng thái từng dòng để bạn lưu/phát cho học sinh.</div>
+</div>
+<div class="grid2"><div class="card"><h3>Tạo tài khoản học sinh</h3><form method="post"><label>Họ tên</label><input name="full_name" required><label>Lớp</label><select name="classroom_id" required>{% for c in classes %}<option value="{{c.id}}">{{c.name}}</option>{% endfor %}</select><label>Tài khoản</label><input name="username" required><label>Email Google (không bắt buộc)</label><input type="email" name="email" placeholder="hocsinh@gmail.com"><label>Mật khẩu</label><input name="password" value="123456" required><button>Tạo tài khoản</button></form></div><div class="card"><h3>Danh sách học sinh</h3><table><tr><th>Họ tên</th><th>Tài khoản / Email</th><th>Lớp</th><th>Thao tác</th></tr>{% for s in students %}<tr><td><b>{{s.full_name}}</b></td><td>{{s.username}}<br><span class="muted">{{s.email or ''}}</span></td><td>{{(classes|selectattr('id','equalto',s.classroom_id)|list|first).name if s.classroom_id else ''}}</td><td><form method="post" action="/teacher/student/{{s.id}}/reset" style="display:inline"><input type="hidden" name="password" value="123456"><button class="orange">Reset MK</button></form> <form method="post" action="/teacher/student/{{s.id}}/delete" style="display:inline" onsubmit="return confirm('Xóa học sinh?')"><button class="red">Xóa</button></form></td></tr>{% endfor %}</table></div></div>{% endblock %}

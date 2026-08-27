@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block heading %}Làm bài{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar" style="justify-content:space-between">
+    <div>
+      <h2>{{assignment.title}}</h2>
+      <p class="muted">{{assignment.description}}</p>
+      <p><span class="badge">Thang điểm {{assignment.score_scale}}</span> <span class="badge">✓ Trắc nghiệm chấm tự động</span></p>
+    </div>
+    <div><b>⏱ Còn <span id="clock"></span></b></div>
+  </div>
+  <form method="post" id="examForm" onsubmit="return confirm('Nộp bài? Sau khi nộp hệ thống sẽ đăng xuất tài khoản học sinh.')">
+    {% set ns = namespace(last_image='') %}
+    {% for q,opts,qscore in display %}
+      {% set word_render = q.image_path and q.image_path.startswith('wordq_') %}
+      {% set tf_question = q.option_a == 'Đúng' and q.option_b == 'Sai' %}
+      <div class="q">
+        <b>Câu {{loop.index}} — {{qscore|round(2)}} điểm</b>
+        <p class="mathtext">{{q.content|rich}}</p>
+        {% if q.image_path and (not word_render or q.image_path != ns.last_image) %}
+          <img class="qimg {% if word_render %}wordqimg{% endif %}" src="/media/{{q.image_path}}" alt="Đề bài">
+        {% endif %}
+        {% if q.image_path %}{% set ns.last_image = q.image_path %}{% endif %}
+
+        {% if q.qtype=='mcq' %}
+          {% if word_render and not tf_question %}
+            <div class="answer-letters">
+              {% for key,text in opts %}
+                <label class="option letter-option"><input type="radio" name="q_{{q.id}}" value="{{key}}"> <b>{{key}}</b></label>
+              {% endfor %}
+            </div>
+          {% else %}
+            {% for key,text in opts %}
+              {% if text %}<label class="option mathtext"><input type="radio" name="q_{{q.id}}" value="{{key}}"> {{key}}. {{text|rich}}</label>{% endif %}
+            {% endfor %}
+          {% endif %}
+        {% elif q.qtype=='short' %}
+          <input name="q_{{q.id}}" placeholder="Nhập đáp án ngắn..." autocomplete="off">
+        {% else %}
+          <textarea rows="6" name="q_{{q.id}}" placeholder="Nhập bài làm tự luận..."></textarea>
+        {% endif %}
+      </div>
+    {% endfor %}
+    <button class="green">Nộp bài</button>
+  </form>
+</div>
+<script>
+let left={{remaining}};
+function tick(){
+  let m=Math.floor(left/60),s=left%60;
+  document.getElementById('clock').textContent=m+':'+String(s).padStart(2,'0');
+  if(left<=0){document.getElementById('examForm').submit();return}
+  left--;setTimeout(tick,1000)
+}
+tick();
+</script>
+{% endblock %}
