@@ -5,6 +5,7 @@
 <div class="card">
   <h2 class="simple-title">🗂️ Kho đề của tôi</h2>
   <p class="simple-help">Lưu đề Word/PDF để dùng lại sau. Muốn thêm đề, chỉ cần chọn file và bấm <b>Lưu đề</b>.</p>
+  <div class="notice"><b>Lưu ý công thức toán:</b> File Word được giữ nguyên 100%. Kho đề không tự chuyển Word sang PDF vì MathType/Equation có thể bị mất khi chuyển trên máy chủ. PDF gốc vẫn xem trực tiếp bình thường.</div>
   <div class="toolbar">
     <span class="badge">{{total_items}} đề</span>
     <span class="badge">Dung lượng: {{total_bytes|filesize}}</span>
@@ -59,7 +60,11 @@
       {% if x.topic %}<p><b>Chủ đề:</b> {{x.topic}}</p>{% endif %}
       {% if x.description %}<p>{{x.description}}</p>{% endif %}
       <div class="action-row">
-        {% if x.preview_pdf_path %}<a class="btn" target="_blank" href="/teacher/exam-archive/{{x.id}}/file/preview">👁 Xem đề</a>{% endif %}
+        {% if x.file_name.lower().endswith('.pdf') %}
+          <a class="btn" target="_blank" href="/teacher/exam-archive/{{x.id}}/file/preview">👁 Xem PDF</a>
+        {% else %}
+          <a class="btn" href="/teacher/exam-archive/{{x.id}}/file/original">📄 Mở/Tải Word gốc</a>
+        {% endif %}
         <a class="btn gray" href="/teacher/exam-archive/{{x.id}}/file/original">⬇ Tải file</a>
         {% if x.file_name.lower().endswith('.docx') %}<form method="post" action="/teacher/exam-archive/{{x.id}}/create-assignment" onsubmit="return confirm('Tạo bài kiểm tra từ đề này?')"><button class="green">📝 Tạo bài kiểm tra</button></form>{% endif %}
         <form method="post" action="/teacher/exam-archive/{{x.id}}/delete" onsubmit="return confirm('Bạn chắc chắn muốn xóa đề này?')"><button class="red">🗑 Xóa</button></form>

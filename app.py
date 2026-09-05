@@ -15,6 +15,8 @@ from io import BytesIO
 import os, re, random, uuid, json, hashlib, subprocess, tempfile, shutil, platform, unicodedata
 from urllib.parse import quote
 import requests
+import zipfile
+import xml.etree.ElementTree as ET
 import fitz
 from PIL import Image, ImageDraw
 
@@ -152,6 +154,9 @@ class BankQuestion(db.Model):
     explanation = db.Column(db.Text, default='')
     points = db.Column(db.Float, default=1.0)  # trọng số
     image_path = db.Column(db.String(255), default='')
+    # Câu đã dùng trong đề/bài làm có thể ẩn khỏi ngân hàng thay vì xóa vật lý,
+    # giúp giữ nguyên đề cũ và kết quả học sinh.
+    is_archived = db.Column(db.Boolean, default=False)
 
 class Assignment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -534,28 +539,158 @@ def xml_text(element):
             out.append(node.text)
     return ''.join(out).strip()
 
+def _vector_preview_to_png(raw, ext):
+    """Chuyển WMF/EMF preview của MathType/Equation thành PNG cho trình duyệt/LibreOffice.
+
+    Ưu tiên libwmf (wmf2svg) + librsvg (rsvg-convert) trên Render Linux.
+    Có ImageMagick làm phương án dự phòng. Trả về bytes PNG hoặc None.
+    """
+    ext = (ext or '').lower()
+    if ext not in ('.wmf', '.emf') or not raw:
+        return None
+    with tempfile.TemporaryDirectory(prefix='mathvec_') as td:
+        src = os.path.join(td, 'input' + ext)
+        png = os.path.join(td, 'output.png')
+        with open(src, 'wb') as f:
+            f.write(raw)
+
+        # MathType cũ thường dùng WMF. libwmf giữ bounding box tốt hơn LibreOffice Draw.
+        if ext == '.wmf':
+            wmf2svg = shutil.which('wmf2svg')
+            rsvg = shutil.which('rsvg-convert')
+            if wmf2svg and rsvg:
+                svg = os.path.join(td, 'output.svg')
+                try:
+                    p1 = subprocess.run([wmf2svg, src, svg], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=False)
+                    if p1.returncode == 0 and os.path.exists(svg) and os.path.getsize(svg) > 0:
+                        p2 = subprocess.run([rsvg, '-z', '2', '-o', png, svg], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=False)
+                        if p2.returncode == 0 and os.path.exists(png) and os.path.getsize(png) > 0:
+                            return open(png, 'rb').read()
+                except Exception:
+                    pass
+
+        # Phương án dự phòng: ImageMagick nếu máy chủ có hỗ trợ định dạng vector đó.
+        magick = shutil.which('magick') or shutil.which('convert')
+        if magick:
+            try:
+                cmd = [magick, src, png]
+                p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=False)
+                if p.returncode == 0 and os.path.exists(png) and os.path.getsize(png) > 0:
+                    # Bỏ ảnh bất thường kiểu nguyên trang trắng do delegate không đúng.
+                    try:
+                        im = Image.open(png)
+                        if im.width > 20 and im.height > 10:
+                            return open(png, 'rb').read()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+    return None
+
+
+def _mathsafe_docx_copy(path, out_path):
+    """Tạo DOCX render-safe bằng cách thay preview WMF/EMF của OLE MathType bằng PNG.
+
+    Không sửa file Word gốc. Chỉ tạo bản tạm dùng cho LibreOffice trên Render.
+    Vị trí/kích thước shape trong document.xml được giữ nguyên; chỉ target ảnh preview đổi sang PNG.
+    """
+    converted = 0
+    try:
+        with tempfile.TemporaryDirectory(prefix='mathsafe_pkg_') as td:
+            with zipfile.ZipFile(path, 'r') as zin:
+                zin.extractall(td)
+
+            rel_path = os.path.join(td, 'word', '_rels', 'document.xml.rels')
+            if not os.path.exists(rel_path):
+                shutil.copy2(path, out_path)
+                return out_path, 0
+
+            tree = ET.parse(rel_path)
+            root = tree.getroot()
+            nsrel = 'http://schemas.openxmlformats.org/package/2006/relationships'
+            media_dir = os.path.join(td, 'word', 'media')
+            os.makedirs(media_dir, exist_ok=True)
+
+            used_targets = set()
+            for rel in root.findall(f'{{{nsrel}}}Relationship'):
+                typ = rel.attrib.get('Type', '')
+                target = rel.attrib.get('Target', '')
+                if not typ.endswith('/image'):
+                    continue
+                ext = os.path.splitext(target)[1].lower()
+                if ext not in ('.wmf', '.emf'):
+                    continue
+                src_media = os.path.normpath(os.path.join(td, 'word', target))
+                if not os.path.exists(src_media):
+                    continue
+                raw = open(src_media, 'rb').read()
+                png = _vector_preview_to_png(raw, ext)
+                if not png:
+                    continue
+                stem = os.path.splitext(os.path.basename(target))[0]
+                new_name = stem + '_mathsafe.png'
+                n = 2
+                while new_name in used_targets or os.path.exists(os.path.join(media_dir, new_name)):
+                    new_name = f'{stem}_mathsafe_{n}.png'; n += 1
+                used_targets.add(new_name)
+                with open(os.path.join(media_dir, new_name), 'wb') as f:
+                    f.write(png)
+                rel.set('Target', 'media/' + new_name)
+                converted += 1
+
+            if converted == 0:
+                shutil.copy2(path, out_path)
+                return out_path, 0
+
+            tree.write(rel_path, encoding='UTF-8', xml_declaration=True)
+
+            # Bảo đảm content type PNG tồn tại.
+            ct_path = os.path.join(td, '[Content_Types].xml')
+            if os.path.exists(ct_path):
+                ctree = ET.parse(ct_path)
+                croot = ctree.getroot()
+                nsct = 'http://schemas.openxmlformats.org/package/2006/content-types'
+                has_png = any(x.attrib.get('Extension','').lower() == 'png' for x in croot.findall(f'{{{nsct}}}Default'))
+                if not has_png:
+                    ET.SubElement(croot, f'{{{nsct}}}Default', {'Extension':'png','ContentType':'image/png'})
+                    ctree.write(ct_path, encoding='UTF-8', xml_declaration=True)
+
+            with zipfile.ZipFile(out_path, 'w', zipfile.ZIP_DEFLATED) as zout:
+                for rootdir, _, files in os.walk(td):
+                    for fn in files:
+                        fp = os.path.join(rootdir, fn)
+                        arc = os.path.relpath(fp, td).replace(os.sep, '/')
+                        zout.write(fp, arc)
+            return out_path, converted
+    except Exception as e:
+        print('MATHSAFE DOCX warning:', e)
+        try: shutil.copy2(path, out_path)
+        except Exception: pass
+        return out_path, 0
+
+
 def save_docx_image(part):
     ctype = getattr(part, 'content_type', '') or ''
     ext_map = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif', 'image/webp': '.webp', 'image/x-emf': '.emf', 'image/x-wmf': '.wmf'}
     ext = ext_map.get(ctype, os.path.splitext(str(getattr(part, 'partname', '')))[1] or '.png')
     raw = part.blob
 
-    # Trình duyệt không đọc EMF/WMF tốt. Nếu Pillow mở được thì đổi sang PNG
-    # để các công thức/toán tử trích từ Word hiển thị được cả online lẫn local.
     if ext.lower() in ('.emf', '.wmf') or ctype in ('image/x-emf', 'image/x-wmf'):
-        try:
-            im = Image.open(BytesIO(raw))
-            if getattr(im, 'mode', 'RGB') not in ('RGB', 'RGBA'):
-                im = im.convert('RGBA')
-            buf = BytesIO()
-            im.save(buf, 'PNG')
-            raw = buf.getvalue()
+        png = _vector_preview_to_png(raw, ext)
+        if png:
+            raw = png
             ext = '.png'
             ctype = 'image/png'
-        except Exception:
-            # Nếu không chuyển được thì vẫn lưu nguyên bản; các câu có render Word
-            # sẽ còn có ảnh tổng của cả câu làm phương án dự phòng.
-            pass
+        else:
+            # Pillow là dự phòng cho môi trường có codec WMF/EMF.
+            try:
+                im = Image.open(BytesIO(raw))
+                if getattr(im, 'mode', 'RGB') not in ('RGB', 'RGBA'):
+                    im = im.convert('RGBA')
+                buf = BytesIO(); im.save(buf, 'PNG')
+                raw = buf.getvalue(); ext = '.png'; ctype = 'image/png'
+            except Exception:
+                pass
 
     name = f'word_{uuid.uuid4().hex[:12]}{ext}'
     return save_question_bytes(raw, name, ctype or None)
@@ -677,6 +812,33 @@ def _pdf_lines(pdf):
     return rows
 
 
+def _docx_has_omml(path):
+    """Phát hiện Word Equation (OMML) trong DOCX mà không cần OCR/chuyển công thức."""
+    try:
+        import zipfile as _zipfile
+        with _zipfile.ZipFile(path, 'r') as z:
+            xml = z.read('word/document.xml')
+            # m:oMath / m:oMathPara là phần tử Word Equation chuẩn.
+            return b'<m:oMath' in xml or b'<m:oMathPara' in xml
+    except Exception:
+        return False
+
+
+def _student_render_source(path, out_path):
+    """Chọn nguồn render an toàn.
+
+    Với OMML: không mở-save bằng python-docx trước khi LibreOffice render,
+    vì bước resave có thể làm thay đổi object Equation trong một số file.
+    File gốc được copy nguyên byte; dòng Đáp án vẫn được che ở bước render PDF.
+    Với file không có OMML: dùng logic cũ để gỡ underline đáp án.
+    """
+    if _docx_has_omml(path):
+        shutil.copy2(path, out_path)
+        print('OMML SAFE MODE: preserve original DOCX package before render')
+        return out_path, True
+    return _student_render_copy(path, out_path), False
+
+
 def _student_render_copy(path, out_path):
     """Tạo bản DOCX chỉ để render cho học sinh.
 
@@ -786,7 +948,7 @@ def render_word_question_images(path):
     Bản V6.5 còn gỡ underline trước khi render vì nhiều file ngân hàng dùng underline
     để đánh dấu đáp án đúng. Nhờ vậy học sinh không nhìn thấy dấu đáp án.
     """
-    digest = hashlib.sha256(b'v66-boundary-crop-3|' + open(path,'rb').read()).hexdigest()[:10]
+    digest = hashlib.sha256(b'v935-omml-safe-1|' + open(path,'rb').read()).hexdigest()[:10]
     cached = {}
     prefix = f'wordq_{digest}_q'
     try:
@@ -800,8 +962,16 @@ def render_word_question_images(path):
         return cached
 
     with tempfile.TemporaryDirectory(prefix='loptoan_word_') as td:
-        safe_docx = _student_render_copy(path, os.path.join(td, 'student_render.docx'))
-        pdf_path = _docx_to_pdf(safe_docx, td)
+        safe_docx, omml_mode = _student_render_source(path, os.path.join(td, 'student_render.docx'))
+        # OMML chuẩn được giữ nguyên XML Word Equation. Chỉ chạy bộ đổi preview
+        # MathType/WMF khi tài liệu không phải OMML thuần.
+        if omml_mode:
+            mathsafe_docx, math_count = safe_docx, 0
+        else:
+            mathsafe_docx, math_count = _mathsafe_docx_copy(safe_docx, os.path.join(td, 'student_render_mathsafe.docx'))
+        if math_count:
+            print(f'MATHSAFE: converted {math_count} MathType/Equation preview(s) to PNG')
+        pdf_path = _docx_to_pdf(mathsafe_docx, td)
         if not pdf_path:
             return {}
         try:
@@ -1692,10 +1862,13 @@ def exam_archive():
         try:
             file_path = save_lesson_bytes(raw, key_base + ext, mime)
             if ext == '.pdf':
-                preview_path = file_path  # không nhân đôi PDF để tiết kiệm Storage
+                preview_path = file_path  # PDF gốc xem trực tiếp, không nhân đôi Storage
             else:
-                pdf_bytes = convert_office_to_pdf_bytes(raw, original_name)
-                preview_path = save_lesson_bytes(pdf_bytes, key_base + '_preview.pdf', 'application/pdf') if pdf_bytes else ''
+                # V9.3.3: KHÔNG tự chuyển Word -> PDF trong Kho đề.
+                # LibreOffice trên Linux/Render có thể làm mất MathType/Equation/OLE,
+                # tạo bản preview sai dù file Word gốc vẫn còn nguyên.
+                # Giữ nguyên Word 100%; khi cần tạo bài kiểm tra sẽ xử lý từ file gốc.
+                preview_path = ''
         except Exception as e:
             flash('Không thể lưu file đề: ' + str(e)[:180], 'error')
             return redirect(url_for('exam_archive'))
@@ -1751,8 +1924,16 @@ def exam_archive_file(item_id, kind):
     item = db.session.get(StoredExam, item_id)
     if not archive_access_allowed(item): return 'Không có quyền', 403
     if kind == 'preview':
-        stored = item.preview_pdf_path
-        name = os.path.splitext(item.file_name)[0] + '.pdf'
+        ext = os.path.splitext(item.file_name or '')[1].lower()
+        if ext != '.pdf':
+            # Dữ liệu V9.3.0-9.3.2 có thể còn preview PDF được LibreOffice tạo từ Word.
+            # Không phục vụ các preview này vì chúng có thể mất công thức toán.
+            raw = read_lesson_bytes(item.file_path)
+            if raw is None: return 'Không tìm thấy file Word gốc trên kho lưu trữ.', 404
+            return send_file(BytesIO(raw), mimetype=item.file_mime or 'application/octet-stream',
+                             as_attachment=True, download_name=item.file_name)
+        stored = item.file_path
+        name = item.file_name
         mime = 'application/pdf'
         attachment = False
     else:
@@ -2167,10 +2348,121 @@ def bank_upload_word():
 
 @app.route('/teacher/question/<int:qid>/delete', methods=['POST'])
 def delete_bank_question(qid):
-    if not teacher_only(): return redirect(url_for('login'))
+    if not require_perm('question_bank'):
+        flash('Bạn chưa được cấp quyền Ngân hàng câu hỏi.', 'error')
+        return redirect(url_for('teacher_dashboard'))
     q = db.session.get(BankQuestion, qid)
     if q and q.owner_id == me().id:
-        AssignmentQuestion.query.filter_by(question_id=q.id).delete(); db.session.delete(q); db.session.commit(); flash('Đã xóa câu hỏi.', 'ok')
+        used_in_assignment = AssignmentQuestion.query.filter_by(question_id=q.id).first() is not None
+        used_in_answer = Answer.query.filter_by(question_id=q.id).first() is not None
+        if used_in_assignment or used_in_answer:
+            q.is_archived = True
+            db.session.commit()
+            flash('Đã ẩn câu hỏi khỏi ngân hàng. Câu vẫn được giữ trong đề/kết quả cũ.', 'ok')
+        else:
+            db.session.delete(q)
+            db.session.commit()
+            flash('Đã xóa câu hỏi.', 'ok')
+    return redirect(url_for('question_bank'))
+
+
+@app.route('/teacher/question-bank/delete-selected', methods=['POST'])
+def delete_selected_bank_questions():
+    """Xóa các câu giáo viên đã tích chọn.
+
+    Câu chưa dùng được xóa thật; câu đã nằm trong đề/kết quả được ẩn để bảo toàn dữ liệu cũ.
+    """
+    if not require_perm('question_bank'):
+        flash('Bạn chưa được cấp quyền Ngân hàng câu hỏi.', 'error')
+        return redirect(url_for('teacher_dashboard'))
+
+    raw_ids = request.form.getlist('q_ids')
+    ids = []
+    for raw in raw_ids:
+        try:
+            qid = int(raw)
+            if qid > 0 and qid not in ids:
+                ids.append(qid)
+        except Exception:
+            pass
+
+    if not ids:
+        flash('Bạn chưa tích chọn câu hỏi nào.', 'error')
+        return redirect(request.referrer or url_for('question_bank'))
+
+    owner_id = me().id
+    questions = BankQuestion.query.filter(
+        BankQuestion.owner_id == owner_id,
+        BankQuestion.is_archived == False,
+        BankQuestion.id.in_(ids)
+    ).all()
+
+    deleted = 0
+    archived = 0
+    try:
+        for q in questions:
+            used_in_assignment = AssignmentQuestion.query.filter_by(question_id=q.id).first() is not None
+            used_in_answer = Answer.query.filter_by(question_id=q.id).first() is not None
+            if used_in_assignment or used_in_answer:
+                q.is_archived = True
+                archived += 1
+            else:
+                db.session.delete(q)
+                deleted += 1
+        db.session.commit()
+        flash(
+            f'Đã xử lý {deleted + archived} câu đã chọn: xóa {deleted} câu chưa dùng; ẩn {archived} câu đang được dùng trong đề/kết quả cũ.',
+            'ok'
+        )
+    except Exception as e:
+        db.session.rollback()
+        flash('Không thể xóa các câu đã chọn: ' + str(e)[:180], 'error')
+
+    # Trở lại đúng trang/bộ lọc nếu trình duyệt gửi return_url.
+    return_url = (request.form.get('return_url') or '').strip()
+    if return_url.startswith('/'):
+        return redirect(return_url)
+    return redirect(url_for('question_bank'))
+
+
+@app.route('/teacher/question-bank/delete-all', methods=['POST'])
+def delete_all_bank_questions():
+    """Làm trống danh sách câu hỏi mà không phá đề và kết quả đã có.
+
+    - Câu chưa từng dùng: xóa vật lý.
+    - Câu đang nằm trong đề hoặc đã có bài làm: đánh dấu archived để ẩn khỏi ngân hàng.
+    """
+    if not require_perm('question_bank'):
+        flash('Bạn chưa được cấp quyền Ngân hàng câu hỏi.', 'error')
+        return redirect(url_for('teacher_dashboard'))
+
+    confirm_text = (request.form.get('confirm_text') or '').strip().upper()
+    if confirm_text != 'XOA HET':
+        flash('Chưa xác nhận. Hãy nhập đúng XOA HET để xóa toàn bộ danh sách.', 'error')
+        return redirect(url_for('question_bank'))
+
+    owner_id = me().id
+    questions = BankQuestion.query.filter_by(owner_id=owner_id, is_archived=False).all()
+    deleted = 0
+    archived = 0
+    try:
+        for q in questions:
+            used_in_assignment = AssignmentQuestion.query.filter_by(question_id=q.id).first() is not None
+            used_in_answer = Answer.query.filter_by(question_id=q.id).first() is not None
+            if used_in_assignment or used_in_answer:
+                q.is_archived = True
+                archived += 1
+            else:
+                db.session.delete(q)
+                deleted += 1
+        db.session.commit()
+        flash(
+            f'Đã làm trống ngân hàng: xóa {deleted} câu chưa dùng; ẩn {archived} câu đang được dùng để bảo toàn đề và kết quả cũ.',
+            'ok'
+        )
+    except Exception as e:
+        db.session.rollback()
+        flash('Không thể xóa toàn bộ câu hỏi: ' + str(e)[:180], 'error')
     return redirect(url_for('question_bank'))
 
 @app.route('/teacher/assignments/new', methods=['GET', 'POST'])
@@ -2222,7 +2514,7 @@ def edit_assignment(assignment_id):
     bank_domain = request.args.get('bank_domain', '').strip()
     bank_topic = request.args.get('bank_topic', '').strip()
     bank_search = request.args.get('bank_search', '').strip()
-    bq = BankQuestion.query.filter_by(owner_id=me().id)
+    bq = BankQuestion.query.filter_by(owner_id=me().id, is_archived=False)
     if bank_subject: bq = bq.filter(BankQuestion.subject == bank_subject)
     if bank_grade: bq = bq.filter(BankQuestion.grade == bank_grade)
     if bank_qtype: bq = bq.filter(BankQuestion.qtype == bank_qtype)
@@ -2262,7 +2554,7 @@ def auto_generate_assignment(assignment_id):
     }
     plan = ratios.get(preset, ratios['Trung bình'])
     existing = {x.question_id for x in AssignmentQuestion.query.filter_by(assignment_id=a.id).all()}
-    base = BankQuestion.query.filter_by(owner_id=me().id, grade=grade)
+    base = BankQuestion.query.filter_by(owner_id=me().id, grade=grade, is_archived=False)
     if a.subject: base = base.filter(BankQuestion.subject == a.subject)
     if domain: base = base.filter(BankQuestion.domain == domain)
     if topic: base = base.filter(BankQuestion.topic.ilike(f'%{topic}%'))
@@ -2919,6 +3211,16 @@ def run_v8_migrations():
 
         migrations.append((930, migration_930))
 
+        def migration_935():
+            insp11 = inspect(db.engine)
+            bcols = {c['name'] for c in insp11.get_columns('bank_question')}
+            if 'is_archived' not in bcols:
+                db.session.execute(text('ALTER TABLE bank_question ADD COLUMN is_archived BOOLEAN'))
+            db.session.execute(text('UPDATE bank_question SET is_archived=FALSE WHERE is_archived IS NULL'))
+            db.session.execute(text('CREATE INDEX IF NOT EXISTS ix_bank_question_owner_archived ON bank_question (owner_id, is_archived)'))
+
+        migrations.append((935, migration_935))
+
         for version, fn in migrations:
             if version in done:
                 continue
@@ -3018,7 +3320,7 @@ with app.app_context():
 def health():
     return {
         'status': 'ok',
-        'version': '9.3.2-concurrent-migration-fix',
+        'version': '9.3.5-omml-safe-delete-all',
         'timezone': APP_TIMEZONE,
         'database': 'postgresql' if str(app.config['SQLALCHEMY_DATABASE_URI']).startswith('postgresql') else 'sqlite'
     }, 200
@@ -3027,7 +3329,7 @@ def health():
 def ready():
     try:
         db.session.execute(text('SELECT 1'))
-        return {'status': 'ready', 'version': '9.3.2-concurrent-migration-fix'}, 200
+        return {'status': 'ready', 'version': '9.3.5-omml-safe-delete-all'}, 200
     except Exception as e:
         db.session.rollback()
         return {'status': 'not-ready', 'error': str(e)[:160]}, 503
