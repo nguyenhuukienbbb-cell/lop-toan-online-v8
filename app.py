@@ -12,7 +12,7 @@ from authlib.integrations.flask_client import OAuth
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from io import BytesIO
-import os, re, random, uuid, json, hashlib, subprocess, tempfile, shutil, platform, unicodedata
+import os, re, random, uuid, json, hashlib, subprocess, tempfile, shutil, platform, unicodedata, time
 from urllib.parse import quote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
@@ -329,7 +329,7 @@ def _guess_image_mime(filename):
 def save_question_bytes(data, filename, content_type=None):
     """
     Lưu ảnh câu hỏi vào Supabase Storage khi chạy online.
-    Khi chạy local thì lưu static/uploads như các bản cũ.
+    Có retry để tránh một lỗi mạng tạm thời làm hỏng toàn bộ import Word.
     """
     filename = secure_filename(filename or '') or f'q_{uuid.uuid4().hex[:12]}.png'
     content_type = content_type or _guess_image_mime(filename)
@@ -337,15 +337,25 @@ def save_question_bytes(data, filename, content_type=None):
     if _supabase_storage_enabled():
         key = f'questions/{filename}'
         url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_STORAGE_BUCKET}/{key}"
-        r = requests.post(
-            url,
-            headers={**_supabase_headers(content_type), 'x-upsert': 'true'},
-            data=data,
-            timeout=60
-        )
-        if r.status_code not in (200, 201):
-            raise RuntimeError(f'Supabase Storage upload ảnh lỗi {r.status_code}: {r.text[:180]}')
-        return 'supabase:' + key
+        last_error = None
+        for attempt in range(3):
+            try:
+                r = requests.post(
+                    url,
+                    headers={**_supabase_headers(content_type), 'x-upsert': 'true'},
+                    data=data,
+                    timeout=90
+                )
+                if r.status_code in (200, 201):
+                    return 'supabase:' + key
+                last_error = RuntimeError(
+                    f'Supabase Storage upload ảnh lỗi {r.status_code}: {r.text[:180]}'
+                )
+            except Exception as e:
+                last_error = e
+            if attempt < 2:
+                time.sleep(1.2 * (attempt + 1))
+        raise RuntimeError('Không thể upload ảnh lên Supabase sau 3 lần thử: ' + str(last_error)[:180])
 
     local_path = os.path.join(app.config['STATIC_UPLOAD_FOLDER'], filename)
     with open(local_path, 'wb') as out:
@@ -1150,7 +1160,7 @@ def render_word_question_images(path):
 
         # Upload ảnh câu hỏi song song thay vì 100 request nối tiếp nhau.
         if pending_uploads:
-            result.update(save_question_batch(pending_uploads, max_workers=5))
+            result.update(save_question_batch(pending_uploads, max_workers=3))
         return result
 
 
@@ -2387,17 +2397,78 @@ def load_builtin_it_1000_questions():
 
 @app.route('/teacher/question-bank/upload-word', methods=['POST'])
 def bank_upload_word():
-    if not teacher_only(): return redirect(url_for('login'))
+    if not teacher_only():
+        return redirect(url_for('login'))
+
     f = request.files.get('word_file')
     if not f or not f.filename.lower().endswith('.docx'):
-        flash('Hãy chọn file Word .docx', 'error'); return redirect(url_for('question_bank'))
-    fn = f'{uuid.uuid4().hex[:8]}_{secure_filename(f.filename)}'; path = os.path.join(app.config['UPLOAD_FOLDER'], fn); f.save(path)
-    items = parse_word(path, prefer_render=True)
-    for x in items:
-        db.session.add(BankQuestion(owner_id=me().id, subject=request.form.get('subject', 'Toán').strip() or 'Toán', grade=request.form.get('grade', ''), topic=request.form.get('topic', ''),
-            difficulty=request.form.get('difficulty', 'Trung bình'), domain=request.form.get('domain', 'Đại số'), qtype=x['qtype'], content=x['content'], option_a=x['opts']['A'], option_b=x['opts']['B'], option_c=x['opts']['C'], option_d=x['opts']['D'],
-            correct_answer=x['correct'], explanation=x['explanation'], points=x['points'], image_path=x['image_path']))
-    db.session.commit(); rendered_count=sum(1 for x in items if x.get('image_path')); flash(f'Đã nhập {len(items)} mục từ Word. {rendered_count} mục được giữ nguyên theo bố cục Word (công thức + hình minh họa); trắc nghiệm có đáp án sẽ tự chấm.', 'ok'); return redirect(url_for('question_bank'))
+        flash('Hãy chọn file Word .docx', 'error')
+        return redirect(url_for('question_bank'))
+
+    fn = f'{uuid.uuid4().hex[:8]}_{secure_filename(f.filename)}'
+    path = os.path.join(app.config['UPLOAD_FOLDER'], fn)
+
+    try:
+        f.save(path)
+
+        # Render + phân tích Word. Với đề 100 câu trên Render Free bước này có thể mất vài phút.
+        items = parse_word(path, prefer_render=True)
+        if not items:
+            flash('Không đọc được câu hỏi nào từ file Word. Hãy kiểm tra cấu trúc Câu / Đáp án / Loại.', 'error')
+            return redirect(url_for('question_bank'))
+
+        owner_id = me().id
+        subject = request.form.get('subject', 'Toán').strip() or 'Toán'
+        grade = request.form.get('grade', '').strip()
+        topic = request.form.get('topic', '').strip()
+        difficulty = request.form.get('difficulty', 'Trung bình').strip() or 'Trung bình'
+        domain = request.form.get('domain', 'Đại số').strip() or 'Đại số'
+
+        # Add theo lô trong cùng một transaction; commit một lần.
+        for x in items:
+            db.session.add(BankQuestion(
+                owner_id=owner_id,
+                subject=subject,
+                grade=grade,
+                topic=topic,
+                difficulty=difficulty,
+                domain=domain,
+                qtype=x['qtype'],
+                content=x['content'],
+                option_a=x['opts']['A'],
+                option_b=x['opts']['B'],
+                option_c=x['opts']['C'],
+                option_d=x['opts']['D'],
+                correct_answer=x['correct'],
+                explanation=x['explanation'],
+                points=x['points'],
+                image_path=x['image_path']
+            ))
+
+        db.session.commit()
+        rendered_count = sum(1 for x in items if x.get('image_path'))
+        flash(
+            f'Đã nhập {len(items)} mục từ Word. {rendered_count} mục giữ nguyên '
+            'công thức/hình theo bố cục Word.',
+            'ok'
+        )
+    except Exception as e:
+        db.session.rollback()
+        app.logger.exception('UPLOAD WORD FAILED')
+        flash(
+            'Import Word bị lỗi: ' + str(e)[:260] +
+            '. Nếu lỗi tiếp tục, mở Render > Logs và gửi các dòng có chữ UPLOAD WORD FAILED.',
+            'error'
+        )
+    finally:
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
+
+    return redirect(url_for('question_bank'))
+
 
 @app.route('/teacher/question/<int:qid>/delete', methods=['POST'])
 def delete_bank_question(qid):

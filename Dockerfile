@@ -6,6 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-writer libreoffice-impress libreoffice-core fontconfig fonts-dejavu-core \
+    libwmf-bin librsvg2-bin imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -13,4 +14,4 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
-CMD ["sh", "-c", "gunicorn --workers 1 --threads 4 --timeout 180 --bind 0.0.0.0:${PORT:-10000} app:app"]
+CMD ["sh", "-c", "gunicorn --workers 1 --threads 4 --timeout 600 --bind 0.0.0.0:${PORT:-10000} app:app"]
