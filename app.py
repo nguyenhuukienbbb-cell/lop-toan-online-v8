@@ -151,7 +151,7 @@ class BankQuestion(db.Model):
     option_b = db.Column(db.Text, default='')
     option_c = db.Column(db.Text, default='')
     option_d = db.Column(db.Text, default='')
-    correct_answer = db.Column(db.String(10), default='')
+    correct_answer = db.Column(db.Text, default='')
     explanation = db.Column(db.Text, default='')
     points = db.Column(db.Float, default=1.0)  # trọng số
     image_path = db.Column(db.String(255), default='')
@@ -2228,11 +2228,12 @@ def ensure_question_bank_loader_schema():
     db.session.execute(text("UPDATE bank_question SET subject='Toán' WHERE subject IS NULL OR subject=''"))
     db.session.commit()
 
-    # PostgreSQL: nới cột domain nếu bản cũ chỉ VARCHAR(20).
-    # SQLite không cần vì không ép độ dài VARCHAR.
+    # PostgreSQL: nới các cột từ các bản cũ.
+    # correct_answer từng là VARCHAR(10), quá ngắn cho một số đáp án Word/Đúng-Sai.
     try:
         if db.engine.dialect.name == 'postgresql':
             db.session.execute(text("ALTER TABLE bank_question ALTER COLUMN domain TYPE VARCHAR(80)"))
+            db.session.execute(text("ALTER TABLE bank_question ALTER COLUMN correct_answer TYPE TEXT"))
             db.session.commit()
     except Exception:
         db.session.rollback()
@@ -2410,6 +2411,9 @@ def bank_upload_word():
 
     try:
         f.save(path)
+
+        # Đồng bộ schema trước khi insert để tránh VARCHAR quá ngắn ở database cũ.
+        ensure_question_bank_loader_schema()
 
         # Render + phân tích Word. Với đề 100 câu trên Render Free bước này có thể mất vài phút.
         items = parse_word(path, prefer_render=True)
@@ -3394,6 +3398,14 @@ def run_v8_migrations():
             db.session.execute(text('CREATE INDEX IF NOT EXISTS ix_bank_question_owner_archived ON bank_question (owner_id, is_archived)'))
 
         migrations.append((935, migration_935))
+
+        def migration_941():
+            # correct_answer ở các bản cũ là VARCHAR(10). Nới sang TEXT để hỗ trợ
+            # đáp án Word Equation, trả lời ngắn và các chuỗi đáp án dài hơn 10 ký tự.
+            if db.engine.dialect.name == 'postgresql':
+                db.session.execute(text("ALTER TABLE bank_question ALTER COLUMN correct_answer TYPE TEXT"))
+
+        migrations.append((941, migration_941))
 
         for version, fn in migrations:
             if version in done:
