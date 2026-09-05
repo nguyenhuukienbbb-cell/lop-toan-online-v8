@@ -2976,21 +2976,49 @@ def seed():
         ])
     db.session.commit()
 
+def run_startup_schema_once():
+    """Chạy tạo bảng/migration an toàn khi nhiều tiến trình cùng khởi động.
+
+    PostgreSQL dùng advisory lock để chỉ một tiến trình được phép thay đổi schema
+    tại một thời điểm. SQLite/local vẫn chạy bình thường.
+    """
+    is_pg = str(app.config.get('SQLALCHEMY_DATABASE_URI', '')).startswith('postgresql')
+    lock_key = 932001  # khóa riêng cho startup schema của ứng dụng
+    locked = False
+    try:
+        if is_pg:
+            db.session.execute(text('SELECT pg_advisory_lock(:k)'), {'k': lock_key})
+            db.session.commit()
+            locked = True
+            print('STARTUP schema lock: acquired')
+
+        db.create_all()
+        # QUAN TRỌNG: tạo perm_* trước migration_830 vì migration đó dùng User.query.
+        bootstrap_user_permission_columns()
+        ensure_v70_schema()
+        run_v8_migrations()
+        seed()
+        classify_existing_builtin_questions()
+        repair_k12_fraction_equations()
+        print('STARTUP schema/migrations: OK')
+    finally:
+        if is_pg and locked:
+            try:
+                db.session.execute(text('SELECT pg_advisory_unlock(:k)'), {'k': lock_key})
+                db.session.commit()
+                print('STARTUP schema lock: released')
+            except Exception as e:
+                db.session.rollback()
+                print('STARTUP schema unlock warning:', e)
+
 with app.app_context():
-    db.create_all()
-    # QUAN TRỌNG: tạo perm_* trước migration_830 vì migration đó dùng User.query.
-    bootstrap_user_permission_columns()
-    ensure_v70_schema()
-    run_v8_migrations()
-    seed()
-    classify_existing_builtin_questions()
-    repair_k12_fraction_equations()
+    run_startup_schema_once()
 
 @app.route('/health')
 def health():
     return {
         'status': 'ok',
-        'version': '9.3.1-simple-ui',
+        'version': '9.3.2-concurrent-migration-fix',
         'timezone': APP_TIMEZONE,
         'database': 'postgresql' if str(app.config['SQLALCHEMY_DATABASE_URI']).startswith('postgresql') else 'sqlite'
     }, 200
@@ -2999,7 +3027,7 @@ def health():
 def ready():
     try:
         db.session.execute(text('SELECT 1'))
-        return {'status': 'ready', 'version': '9.3.1-simple-ui'}, 200
+        return {'status': 'ready', 'version': '9.3.2-concurrent-migration-fix'}, 200
     except Exception as e:
         db.session.rollback()
         return {'status': 'not-ready', 'error': str(e)[:160]}, 503
