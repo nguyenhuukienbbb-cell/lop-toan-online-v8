@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from io import BytesIO
 import os, re, random, uuid, json, hashlib, subprocess, tempfile, shutil, platform, unicodedata
 from urllib.parse import quote
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 import zipfile
 import xml.etree.ElementTree as ET
@@ -350,6 +351,36 @@ def save_question_bytes(data, filename, content_type=None):
     with open(local_path, 'wb') as out:
         out.write(data)
     return filename
+
+
+def save_question_batch(items, max_workers=5):
+    """Upload nhiều ảnh câu hỏi song song để giảm thời gian import Word.
+
+    items: [(key, data, filename, content_type), ...]
+    Trả về dict key -> stored_path.
+    """
+    if not items:
+        return {}
+
+    # Local disk nhanh hơn khi ghi tuần tự và tránh thread không cần thiết.
+    if not _supabase_storage_enabled() or len(items) == 1:
+        return {
+            key: save_question_bytes(data, filename, content_type)
+            for key, data, filename, content_type in items
+        }
+
+    workers = max(2, min(int(max_workers or 5), 6, len(items)))
+    results = {}
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(save_question_bytes, data, filename, content_type): key
+            for key, data, filename, content_type in items
+        }
+        for future in as_completed(futures):
+            key = futures[future]
+            results[key] = future.result()
+    return results
+
 
 def save_uploaded_image(f, prefix='q'):
     if not f or not getattr(f, 'filename', ''):
@@ -1012,6 +1043,7 @@ def render_word_question_images(path):
 
         answer_rows = [r for r in lines if re.match(r'^\s*(Đáp\s*án|ĐA)\s*[:\-]', r['text'], re.I)]
         result = {}
+        pending_uploads = []
         zoom = 2.0
 
         def render_region(sp, sy, ep, ey):
@@ -1109,9 +1141,16 @@ def render_word_question_images(path):
                 merged=merged.resize((1800,max(1,int(merged.height*ratio))),Image.Resampling.LANCZOS)
             fn=f'wordq_{digest}_q{st["qnum"]}.png'
             buf = BytesIO()
-            merged.save(buf, 'PNG', optimize=True)
-            result[st['qnum']] = save_question_bytes(buf.getvalue(), fn, 'image/png')
+            # compress_level=3 nhanh hơn optimize=True đáng kể trên Render Free,
+            # vẫn giữ nguyên chất lượng pixel của công thức.
+            merged.save(buf, 'PNG', compress_level=3)
+            pending_uploads.append((st['qnum'], buf.getvalue(), fn, 'image/png'))
+
         pdf.close()
+
+        # Upload ảnh câu hỏi song song thay vì 100 request nối tiếp nhau.
+        if pending_uploads:
+            result.update(save_question_batch(pending_uploads, max_workers=5))
         return result
 
 
@@ -1303,6 +1342,19 @@ def is_word_render_image(stored_path):
     return raw.startswith('wordq_')
 
 
+def render_rich_fast(v):
+    """Bản xem nhanh cho trang Soạn đề: không tải ảnh/công thức nội tuyến."""
+    if not v:
+        return Markup('')
+    text = str(v)
+    text = re.sub(
+        r'\[\[img:[^\]]+\]\]',
+        '<span class="badge">∑ Công thức/hình</span>',
+        str(escape(text))
+    )
+    return Markup(text.replace('\n', '<br>'))
+
+
 def render_rich(v):
     """Hiển thị token ảnh nội tuyến [[img:file]] an toàn trong nội dung câu hỏi/đáp án.
 
@@ -1347,6 +1399,7 @@ def import_k12_items_to_assignment(a, grade='6', topic='Phân số'):
     db.session.commit(); return count
 
 app.jinja_env.filters['rich'] = render_rich
+app.jinja_env.filters['rich_fast'] = render_rich_fast
 app.jinja_env.filters['filesize'] = pretty_bytes
 app.jinja_env.globals['media_url'] = media_url
 app.jinja_env.globals['is_word_render_image'] = is_word_render_image
@@ -2368,17 +2421,13 @@ def delete_bank_question(qid):
 
 @app.route('/teacher/question-bank/delete-selected', methods=['POST'])
 def delete_selected_bank_questions():
-    """Xóa các câu giáo viên đã tích chọn.
-
-    Câu chưa dùng được xóa thật; câu đã nằm trong đề/kết quả được ẩn để bảo toàn dữ liệu cũ.
-    """
+    """Xóa các câu đã tích chọn bằng truy vấn theo lô, tránh N+1 query."""
     if not require_perm('question_bank'):
         flash('Bạn chưa được cấp quyền Ngân hàng câu hỏi.', 'error')
         return redirect(url_for('teacher_dashboard'))
 
-    raw_ids = request.form.getlist('q_ids')
     ids = []
-    for raw in raw_ids:
+    for raw in request.form.getlist('q_ids'):
         try:
             qid = int(raw)
             if qid > 0 and qid not in ids:
@@ -2391,34 +2440,57 @@ def delete_selected_bank_questions():
         return redirect(request.referrer or url_for('question_bank'))
 
     owner_id = me().id
-    questions = BankQuestion.query.filter(
-        BankQuestion.owner_id == owner_id,
-        BankQuestion.is_archived == False,
-        BankQuestion.id.in_(ids)
-    ).all()
-
-    deleted = 0
-    archived = 0
     try:
-        for q in questions:
-            used_in_assignment = AssignmentQuestion.query.filter_by(question_id=q.id).first() is not None
-            used_in_answer = Answer.query.filter_by(question_id=q.id).first() is not None
-            if used_in_assignment or used_in_answer:
-                q.is_archived = True
-                archived += 1
-            else:
-                db.session.delete(q)
-                deleted += 1
+        owned_ids = {
+            row[0] for row in db.session.query(BankQuestion.id).filter(
+                BankQuestion.owner_id == owner_id,
+                BankQuestion.is_archived == False,
+                BankQuestion.id.in_(ids)
+            ).all()
+        }
+        if not owned_ids:
+            flash('Không tìm thấy câu hỏi phù hợp để xóa.', 'error')
+            return redirect(request.form.get('return_url') or url_for('question_bank'))
+
+        assignment_used = {
+            row[0] for row in db.session.query(AssignmentQuestion.question_id).filter(
+                AssignmentQuestion.question_id.in_(owned_ids)
+            ).distinct().all()
+        }
+        answer_used = {
+            row[0] for row in db.session.query(Answer.question_id).filter(
+                Answer.question_id.in_(owned_ids)
+            ).distinct().all()
+        }
+        used_ids = assignment_used | answer_used
+        delete_ids = owned_ids - used_ids
+
+        archived = 0
+        deleted = 0
+        if used_ids:
+            archived = BankQuestion.query.filter(
+                BankQuestion.owner_id == owner_id,
+                BankQuestion.id.in_(used_ids)
+            ).update(
+                {BankQuestion.is_archived: True},
+                synchronize_session=False
+            )
+        if delete_ids:
+            deleted = BankQuestion.query.filter(
+                BankQuestion.owner_id == owner_id,
+                BankQuestion.id.in_(delete_ids)
+            ).delete(synchronize_session=False)
+
         db.session.commit()
         flash(
-            f'Đã xử lý {deleted + archived} câu đã chọn: xóa {deleted} câu chưa dùng; ẩn {archived} câu đang được dùng trong đề/kết quả cũ.',
+            f'Đã xử lý {deleted + archived} câu đã chọn: xóa {deleted} câu chưa dùng; '
+            f'ẩn {archived} câu đang được dùng trong đề/kết quả cũ.',
             'ok'
         )
     except Exception as e:
         db.session.rollback()
         flash('Không thể xóa các câu đã chọn: ' + str(e)[:180], 'error')
 
-    # Trở lại đúng trang/bộ lọc nếu trình duyệt gửi return_url.
     return_url = (request.form.get('return_url') or '').strip()
     if return_url.startswith('/'):
         return redirect(return_url)
@@ -2427,11 +2499,7 @@ def delete_selected_bank_questions():
 
 @app.route('/teacher/question-bank/delete-all', methods=['POST'])
 def delete_all_bank_questions():
-    """Làm trống danh sách câu hỏi mà không phá đề và kết quả đã có.
-
-    - Câu chưa từng dùng: xóa vật lý.
-    - Câu đang nằm trong đề hoặc đã có bài làm: đánh dấu archived để ẩn khỏi ngân hàng.
-    """
+    """Làm trống ngân hàng bằng truy vấn theo lô, nhanh hơn với hàng trăm/nghìn câu."""
     if not require_perm('question_bank'):
         flash('Bạn chưa được cấp quyền Ngân hàng câu hỏi.', 'error')
         return redirect(url_for('teacher_dashboard'))
@@ -2442,28 +2510,57 @@ def delete_all_bank_questions():
         return redirect(url_for('question_bank'))
 
     owner_id = me().id
-    questions = BankQuestion.query.filter_by(owner_id=owner_id, is_archived=False).all()
-    deleted = 0
-    archived = 0
     try:
-        for q in questions:
-            used_in_assignment = AssignmentQuestion.query.filter_by(question_id=q.id).first() is not None
-            used_in_answer = Answer.query.filter_by(question_id=q.id).first() is not None
-            if used_in_assignment or used_in_answer:
-                q.is_archived = True
-                archived += 1
-            else:
-                db.session.delete(q)
-                deleted += 1
+        owned_ids = {
+            row[0] for row in db.session.query(BankQuestion.id).filter(
+                BankQuestion.owner_id == owner_id,
+                BankQuestion.is_archived == False
+            ).all()
+        }
+        if not owned_ids:
+            flash('Ngân hàng câu hỏi đã trống.', 'ok')
+            return redirect(url_for('question_bank'))
+
+        assignment_used = {
+            row[0] for row in db.session.query(AssignmentQuestion.question_id).filter(
+                AssignmentQuestion.question_id.in_(owned_ids)
+            ).distinct().all()
+        }
+        answer_used = {
+            row[0] for row in db.session.query(Answer.question_id).filter(
+                Answer.question_id.in_(owned_ids)
+            ).distinct().all()
+        }
+        used_ids = assignment_used | answer_used
+        delete_ids = owned_ids - used_ids
+
+        archived = 0
+        deleted = 0
+        if used_ids:
+            archived = BankQuestion.query.filter(
+                BankQuestion.owner_id == owner_id,
+                BankQuestion.id.in_(used_ids)
+            ).update(
+                {BankQuestion.is_archived: True},
+                synchronize_session=False
+            )
+        if delete_ids:
+            deleted = BankQuestion.query.filter(
+                BankQuestion.owner_id == owner_id,
+                BankQuestion.id.in_(delete_ids)
+            ).delete(synchronize_session=False)
+
         db.session.commit()
         flash(
-            f'Đã làm trống ngân hàng: xóa {deleted} câu chưa dùng; ẩn {archived} câu đang được dùng để bảo toàn đề và kết quả cũ.',
+            f'Đã làm trống ngân hàng: xóa {deleted} câu chưa dùng; '
+            f'ẩn {archived} câu đang được dùng để bảo toàn đề và kết quả cũ.',
             'ok'
         )
     except Exception as e:
         db.session.rollback()
         flash('Không thể xóa toàn bộ câu hỏi: ' + str(e)[:180], 'error')
     return redirect(url_for('question_bank'))
+
 
 @app.route('/teacher/assignments/new', methods=['GET', 'POST'])
 def new_assignment():
@@ -2505,8 +2602,14 @@ def edit_assignment(assignment_id):
             if qid not in existing:
                 order += 1; db.session.add(AssignmentQuestion(assignment_id=a.id, question_id=qid, order_no=order))
         db.session.commit(); flash('Đã thêm câu hỏi vào đề.', 'ok')
-    aq = AssignmentQuestion.query.filter_by(assignment_id=a.id).order_by(AssignmentQuestion.order_no).all()
-    selected = [db.session.get(BankQuestion, x.question_id) for x in aq]
+    # Lấy câu trong đề bằng 1 truy vấn JOIN thay vì db.session.get() từng câu.
+    selected = [
+        row[0] for row in db.session.query(BankQuestion)
+        .join(AssignmentQuestion, AssignmentQuestion.question_id == BankQuestion.id)
+        .filter(AssignmentQuestion.assignment_id == a.id)
+        .order_by(AssignmentQuestion.order_no)
+        .all()
+    ]
     bank_subject = request.args.get('bank_subject', a.subject or '').strip()
     bank_grade = request.args.get('bank_grade', '').strip()
     bank_qtype = request.args.get('bank_qtype', '').strip()
@@ -2522,7 +2625,7 @@ def edit_assignment(assignment_id):
     if bank_domain: bq = bq.filter(BankQuestion.domain == bank_domain)
     if bank_topic: bq = bq.filter(BankQuestion.topic.ilike(f'%{bank_topic}%'))
     if bank_search: bq = bq.filter(BankQuestion.content.ilike(f'%{bank_search}%'))
-    bank = bq.order_by(BankQuestion.id.desc()).limit(120).all()
+    bank = bq.order_by(BankQuestion.id.desc()).limit(40).all()
     return render_template('edit_assignment.html', assignment=a, selected=selected, bank=bank,
                            classes=accessible_classes(), selected_class_ids=assignment_class_ids(a),
                            score_map=question_score_map(a, selected), bank_subject=bank_subject, bank_grade=bank_grade, bank_qtype=bank_qtype,

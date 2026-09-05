@@ -8,6 +8,99 @@
 {% set st=assignment_status(assignment) %}
 <div class="card publish-card"><div><h3>Trạng thái giao bài: <span class="status {{st[1]}}">{{st[0]}}</span></h3><p class="muted">Lớp nhận bài: <b>{{assignment_class_names(assignment)}}</b>. Hãy lưu cấu hình trước nếu bạn vừa thay đổi lớp hoặc thời gian.</p></div><div class="publish-actions">{% if assignment.is_published %}<form method="post" action="/teacher/assignment/{{assignment.id}}/unpublish" onsubmit="return confirm('Thu hồi bài này? Học sinh sẽ không còn nhìn thấy đề.')"><button class="orange big-action">↩ THU HỒI BÀI</button></form>{% else %}<form method="post" action="/teacher/assignment/{{assignment.id}}/publish"><button class="green big-action">✓ GIAO BÀI CHO HỌC SINH</button></form>{% endif %}</div></div>
 <div class="card" style="border:2px solid #22c55e"><h3>✅ Đề Phân số của bạn đã được tích hợp sẵn</h3><p class="muted">Bản V6.2 đã đọc riêng file <b>CauHoi_PhanSo_CoDapAn_K12Online(1).docx</b>, giữ các công thức MathType dưới dạng ảnh và chuyển câu Đúng/Sai thành các mệnh đề tự chấm.</p><form method="post" action="/teacher/assignment/{{assignment.id}}/import-k12-fraction-sample" onsubmit="return confirm('Thêm toàn bộ đề Phân số mẫu vào bài này?')"><button class="green big-action">+ NẠP ĐỀ PHÂN SỐ MẪU</button></form></div>
-<div class="card" style="border:2px solid #7c3aed"><h3>⚡ Tạo đề tự động theo độ khó</h3><p class="muted">Chọn khối và kiểu đề. Hệ thống tự lấy câu chưa có trong đề từ ngân hàng.</p><form method="post" action="/teacher/assignment/{{assignment.id}}/auto-generate"><div class="grid2"><div><label>Khối</label><select name="auto_grade" required><option value="">-- Chọn khối --</option>{% for g in ['6','7','8','9'] %}<option value="{{g}}">Lớp {{g}}</option>{% endfor %}</select></div><div><label>Nhóm nội dung</label><select name="auto_domain"><option value="">Tất cả</option>{% if assignment.subject=='Tin học' %}<option>Máy tính & mạng</option><option>Dữ liệu & ứng dụng</option><option>Thuật toán & lập trình</option><option>An toàn số</option>{% else %}<option>Đại số</option><option>Hình học</option>{% endif %}</select></div><div><label>Kiểu đề</label><select name="auto_preset"><option>Dễ</option><option selected>Trung bình</option><option>Khó</option></select></div><div><label>Số câu</label><input type="number" name="auto_count" min="1" max="100" value="20"></div><div><label>Chủ đề (để trống = tất cả)</label><input name="auto_topic" placeholder="Ví dụ: Phân số"></div></div><div class="flash" style="background:#f5f3ff"><b>Cơ cấu:</b> Đề Dễ = 70% dễ + 30% trung bình; Đề Trung bình = 30% dễ + 50% trung bình + 20% khó; Đề Khó = 10% dễ + 30% trung bình + 60% khó.</div><button class="green big-action">⚡ TẠO ĐỀ TỰ ĐỘNG</button></form></div><div class="card"><h3>📄 Tạo đề trực tiếp từ file Word</h3><p class="muted">Câu hỏi nhập vào sẽ vừa được thêm vào đề này, vừa lưu vào Ngân hàng câu hỏi. Công thức/hình trong Word được giữ theo chế độ render nguyên câu. Bạn chỉ cần chọn file Word và nhập như bình thường, không cần thao tác thêm.</p><p><a class="btn green" href="/teacher/word-template">⬇ TẢI MẪU WORD TRẮC NGHIỆM + TỰ LUẬN</a></p><div class="flash" style="background:#eff6ff"><b>Mẫu hỗ trợ:</b> A/B/C/D, Đúng/Sai a)-d), trả lời ngắn và tự luận. Với câu tự luận dùng dòng <b>Loại: Tự luận</b>; trắc nghiệm dùng dòng <b>Đáp án:</b> để hệ thống tự chấm.</div><form method="post" action="/teacher/assignment/{{assignment.id}}/upload-word" enctype="multipart/form-data"><div class="grid2"><div><label>Khối</label><input name="grade" placeholder="6"></div><div><label>Chủ đề</label><input name="topic" placeholder="Phân số"></div><div><label>Mức độ mặc định</label><select name="difficulty"><option>Dễ</option><option selected>Trung bình</option><option>Khó</option></select></div><div><label>Nhóm nội dung</label><select name="domain">{% if assignment.subject=='Tin học' %}<option>Máy tính & mạng</option><option>Dữ liệu & ứng dụng</option><option>Thuật toán & lập trình</option><option>An toàn số</option>{% else %}<option selected>Đại số</option><option>Hình học</option>{% endif %}</select></div></div><input type="file" name="word_file" accept=".docx" required><button class="green">Nhập Word vào đề</button></form></div>
-<div class="grid2"><div class="card"><h3>Câu trong đề ({{selected|length}})</h3>{% for q in selected %}<div class="q"><b>Câu {{loop.index}} – {{score_map.get(q.id,0)|round(2)}} điểm <span class="badge">{{q.domain}}</span> <span class="badge">{{q.difficulty}}</span> <span class="muted">(trọng số {{q.points}})</span></b><p class="mathtext">{{q.content|rich}}</p>{% if q.image_path %}<img class="qimg" src="{{ media_url(q.image_path) }}">{% endif %}<form method="post" action="/teacher/assignment/{{assignment.id}}/remove/{{q.id}}"><button class="red">Bỏ khỏi đề</button></form></div>{% else %}<p>Chưa có câu hỏi.</p>{% endfor %}</div>
-<div class="card"><h3>Chọn từ ngân hàng</h3><form method="get" style="margin-bottom:12px"><div class="grid2"><div><label>Môn học</label><select name="bank_subject"><option value="">Tất cả</option><option value="Toán" {% if bank_subject=='Toán' %}selected{% endif %}>Toán</option><option value="Tin học" {% if bank_subject=='Tin học' %}selected{% endif %}>Tin học</option><option value="Toán tiếng Anh" {% if bank_subject=='Toán tiếng Anh' %}selected{% endif %}>Toán tiếng Anh</option></select></div><div><label>Khối</label><select name="bank_grade"><option value="">Tất cả</option>{% for g in ['6','7','8','9'] %}<option value="{{g}}" {% if bank_grade==g %}selected{% endif %}>Lớp {{g}}</option>{% endfor %}</select></div><div><label>Loại</label><select name="bank_qtype"><option value="">Tất cả</option><option value="mcq" {% if bank_qtype=='mcq' %}selected{% endif %}>Trắc nghiệm</option><option value="short" {% if bank_qtype=='short' %}selected{% endif %}>Trả lời ngắn</option><option value="essay" {% if bank_qtype=='essay' %}selected{% endif %}>Tự luận</option></select></div><div><label>Mức độ</label><select name="bank_difficulty"><option value="">Tất cả</option>{% for d in ['Dễ','Trung bình','Khó'] %}<option value="{{d}}" {% if bank_difficulty==d %}selected{% endif %}>{{d}}</option>{% endfor %}</select></div><div><label>Phân môn</label><select name="bank_domain"><option value="">Tất cả</option>{% for d in ['Đại số','Hình học','Máy tính & mạng','Dữ liệu & ứng dụng','Thuật toán & lập trình','An toàn số'] %}<option value="{{d}}" {% if bank_domain==d %}selected{% endif %}>{{d}}</option>{% endfor %}</select></div><div><label>Chủ đề</label><input name="bank_topic" value="{{bank_topic}}" placeholder="Phân số"></div><div><label>Từ khóa</label><input name="bank_search" value="{{bank_search}}"></div></div><button type="submit">Lọc ngân hàng</button></form><p class="muted">Hiển thị tối đa 120 câu phù hợp. Dùng bộ lọc để chọn nhanh trong ngân hàng lớn.</p><form method="post">{% for q in bank %}<label class="option"><input type="checkbox" name="question_ids" value="{{q.id}}"> <b>[{{q.subject or "Toán"}} / Khối {{q.grade}} / {{q.domain}} / {{q.topic}} / {{q.difficulty}} / {{'TN' if q.qtype=='mcq' else ('Ngắn' if q.qtype=='short' else 'Tự luận')}}]</b> <span class="mathtext">{{q.content|rich}}</span></label>{% endfor %}<button>Thêm câu đã chọn</button></form></div></div>{% endblock %}
+<div class="card" style="border:2px solid #7c3aed"><h3>⚡ Tạo đề tự động theo độ khó</h3><p class="muted">Chọn khối và kiểu đề. Hệ thống tự lấy câu chưa có trong đề từ ngân hàng.</p><form method="post" action="/teacher/assignment/{{assignment.id}}/auto-generate"><div class="grid2"><div><label>Khối</label><select name="auto_grade" required><option value="">-- Chọn khối --</option>{% for g in ['6','7','8','9'] %}<option value="{{g}}">Lớp {{g}}</option>{% endfor %}</select></div><div><label>Nhóm nội dung</label><select name="auto_domain"><option value="">Tất cả</option>{% if assignment.subject=='Tin học' %}<option>Máy tính & mạng</option><option>Dữ liệu & ứng dụng</option><option>Thuật toán & lập trình</option><option>An toàn số</option>{% else %}<option>Đại số</option><option>Hình học</option>{% endif %}</select></div><div><label>Kiểu đề</label><select name="auto_preset"><option>Dễ</option><option selected>Trung bình</option><option>Khó</option></select></div><div><label>Số câu</label><input type="number" name="auto_count" min="1" max="100" value="20"></div><div><label>Chủ đề (để trống = tất cả)</label><input name="auto_topic" placeholder="Ví dụ: Phân số"></div></div><div class="flash" style="background:#f5f3ff"><b>Cơ cấu:</b> Đề Dễ = 70% dễ + 30% trung bình; Đề Trung bình = 30% dễ + 50% trung bình + 20% khó; Đề Khó = 10% dễ + 30% trung bình + 60% khó.</div><button class="green big-action">⚡ TẠO ĐỀ TỰ ĐỘNG</button></form></div><div class="card"><h3>📄 Tạo đề trực tiếp từ file Word</h3><p class="muted">Câu hỏi nhập vào sẽ vừa được thêm vào đề này, vừa lưu vào Ngân hàng câu hỏi. Công thức/hình trong Word được giữ theo chế độ render nguyên câu. Bạn chỉ cần chọn file Word và nhập như bình thường, không cần thao tác thêm.</p><p><a class="btn green" href="/teacher/word-template">⬇ TẢI MẪU WORD TRẮC NGHIỆM + TỰ LUẬN</a></p><div class="flash" style="background:#eff6ff"><b>Mẫu hỗ trợ:</b> A/B/C/D, Đúng/Sai a)-d), trả lời ngắn và tự luận. Với câu tự luận dùng dòng <b>Loại: Tự luận</b>; trắc nghiệm dùng dòng <b>Đáp án:</b> để hệ thống tự chấm.</div><form method="post" action="/teacher/assignment/{{assignment.id}}/upload-word" enctype="multipart/form-data" onsubmit="const b=this.querySelector('button[type=submit],button:not([type])'); if(b){b.disabled=true;b.textContent='⏳ Đang xử lý đề...';}"><div class="grid2"><div><label>Khối</label><input name="grade" placeholder="6"></div><div><label>Chủ đề</label><input name="topic" placeholder="Phân số"></div><div><label>Mức độ mặc định</label><select name="difficulty"><option>Dễ</option><option selected>Trung bình</option><option>Khó</option></select></div><div><label>Nhóm nội dung</label><select name="domain">{% if assignment.subject=='Tin học' %}<option>Máy tính & mạng</option><option>Dữ liệu & ứng dụng</option><option>Thuật toán & lập trình</option><option>An toàn số</option>{% else %}<option selected>Đại số</option><option>Hình học</option>{% endif %}</select></div></div><input type="file" name="word_file" accept=".docx" required><button class="green">Nhập Word vào đề</button></form></div>
+<div class="grid2">
+<div class="card">
+  <div class="toolbar" style="justify-content:space-between">
+    <h3 style="margin:0">Câu trong đề ({{selected|length}})</h3>
+    <span class="badge">⚡ Chế độ tải nhanh</span>
+  </div>
+  <p class="muted">Ảnh/công thức không tải ngay. Bấm <b>Xem hình/công thức</b> ở câu cần kiểm tra.</p>
+
+  {% for q in selected %}
+  <div class="q">
+    <b>Câu {{loop.index}} – {{score_map.get(q.id,0)|round(2)}} điểm
+      <span class="badge">{{q.domain}}</span>
+      <span class="badge">{{q.difficulty}}</span>
+    </b>
+    <p class="mathtext">{{q.content|rich_fast}}</p>
+
+    {% if q.image_path %}
+      <button type="button" class="gray" onclick="loadQuestionImage(this,'{{ media_url(q.image_path) }}')">🖼 Xem hình/công thức</button>
+      <div class="lazy-image-box" style="display:none;margin-top:8px"></div>
+    {% endif %}
+
+    <form method="post" action="/teacher/assignment/{{assignment.id}}/remove/{{q.id}}" style="margin-top:8px">
+      <button class="red">Bỏ khỏi đề</button>
+    </form>
+  </div>
+  {% else %}
+    <p>Chưa có câu hỏi.</p>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h3>Chọn từ ngân hàng</h3>
+  <p class="muted">Chỉ tải tối đa <b>40 câu</b> mỗi lần để trang mở nhanh. Dùng bộ lọc để tìm đúng câu cần dùng.</p>
+  <form method="get" style="margin-bottom:12px">
+    <div class="grid2">
+      <div><label>Môn học</label><select name="bank_subject"><option value="">Tất cả</option><option value="Toán" {% if bank_subject=='Toán' %}selected{% endif %}>Toán</option><option value="Tin học" {% if bank_subject=='Tin học' %}selected{% endif %}>Tin học</option><option value="Toán tiếng Anh" {% if bank_subject=='Toán tiếng Anh' %}selected{% endif %}>Toán tiếng Anh</option></select></div>
+      <div><label>Khối</label><select name="bank_grade"><option value="">Tất cả</option>{% for g in ['6','7','8','9'] %}<option value="{{g}}" {% if bank_grade==g %}selected{% endif %}>Lớp {{g}}</option>{% endfor %}</select></div>
+      <div><label>Loại</label><select name="bank_qtype"><option value="">Tất cả</option><option value="mcq" {% if bank_qtype=='mcq' %}selected{% endif %}>Trắc nghiệm</option><option value="short" {% if bank_qtype=='short' %}selected{% endif %}>Trả lời ngắn</option><option value="essay" {% if bank_qtype=='essay' %}selected{% endif %}>Tự luận</option></select></div>
+      <div><label>Mức độ</label><select name="bank_difficulty"><option value="">Tất cả</option>{% for d in ['Dễ','Trung bình','Khó'] %}<option value="{{d}}" {% if bank_difficulty==d %}selected{% endif %}>{{d}}</option>{% endfor %}</select></div>
+      <div><label>Phân môn</label><select name="bank_domain"><option value="">Tất cả</option>{% for d in ['Đại số','Hình học','Máy tính & mạng','Dữ liệu & ứng dụng','Thuật toán & lập trình','An toàn số'] %}<option value="{{d}}" {% if bank_domain==d %}selected{% endif %}>{{d}}</option>{% endfor %}</select></div>
+      <div><label>Chủ đề</label><input name="bank_topic" value="{{bank_topic}}" placeholder="Phân số"></div>
+      <div><label>Từ khóa</label><input name="bank_search" value="{{bank_search}}"></div>
+    </div>
+    <button type="submit">🔎 Lọc ngân hàng</button>
+  </form>
+
+  <form method="post">
+    {% for q in bank %}
+      <label class="option">
+        <input type="checkbox" name="question_ids" value="{{q.id}}">
+        <b>[{{q.subject or "Toán"}} / Khối {{q.grade}} / {{q.domain}} / {{q.topic}} / {{q.difficulty}} / {{'TN' if q.qtype=='mcq' else ('Ngắn' if q.qtype=='short' else 'Tự luận')}}]</b>
+        <span class="mathtext">{{q.content|rich_fast}}</span>
+        {% if q.image_path %}<span class="badge">🖼 Có hình/công thức</span>{% endif %}
+      </label>
+    {% else %}
+      <p class="muted">Không có câu phù hợp bộ lọc.</p>
+    {% endfor %}
+    <button>Thêm câu đã chọn</button>
+  </form>
+</div>
+</div>
+
+<script>
+function loadQuestionImage(btn, src){
+  const box = btn.nextElementSibling;
+  if(!box) return;
+  if(box.dataset.loaded === '1'){
+    const hidden = box.style.display === 'none';
+    box.style.display = hidden ? 'block' : 'none';
+    btn.textContent = hidden ? 'Ẩn hình/công thức' : '🖼 Xem hình/công thức';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang tải...';
+  const img = document.createElement('img');
+  img.className = 'qimg wordqimg';
+  img.loading = 'lazy';
+  img.onload = function(){
+    box.dataset.loaded = '1';
+    box.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Ẩn hình/công thức';
+  };
+  img.onerror = function(){
+    box.innerHTML = '<div class="flash error">Không tải được hình/công thức.</div>';
+    box.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Thử tải lại';
+  };
+  img.src = src;
+  box.innerHTML = '';
+  box.appendChild(img);
+}
+</script>
+{% endblock %}
