@@ -19,7 +19,7 @@
     <div class="q">
       <b>Câu {{loop.index}}</b>
       <p class="mathtext">{{q.content|rich}}</p>
-      {% if q.image_path %}<img class="qimg" src="/media/{{q.image_path}}">{% endif %}
+      {% if q.image_path %}<img class="qimg" src="{{ media_url(q.image_path) }}">{% endif %}
       <p><b>Bài làm:</b>
         {% if q.qtype=='mcq' %}
           {{ans.answer_text or '(Không chọn)'}}{% if row.selected_text %}. <span class="mathtext">{{row.selected_text|rich}}</span>{% endif %}

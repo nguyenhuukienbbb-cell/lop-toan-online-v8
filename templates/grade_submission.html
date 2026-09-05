@@ -10,7 +10,7 @@
     <div class="q">
       <b>Câu {{loop.index}} — tối đa {{qmax|round(2)}} điểm</b>
       <p class="mathtext">{{q.content|rich}}</p>
-      {% if q.image_path %}<img class="qimg" src="/media/{{q.image_path}}">{% endif %}
+      {% if q.image_path %}<img class="qimg" src="{{ media_url(q.image_path) }}">{% endif %}
 
       {% if q.qtype=='mcq' %}
         {% set selected = ans.answer_text|upper %}

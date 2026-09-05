@@ -13,13 +13,13 @@
   <form method="post" id="examForm" onsubmit="return confirm('Nộp bài? Sau khi nộp hệ thống sẽ đăng xuất tài khoản học sinh.')">
     {% set ns = namespace(last_image='') %}
     {% for q,opts,qscore in display %}
-      {% set word_render = q.image_path and q.image_path.startswith('wordq_') %}
+      {% set word_render = is_word_render_image(q.image_path) %}
       {% set tf_question = q.option_a == 'Đúng' and q.option_b == 'Sai' %}
       <div class="q">
         <b>Câu {{loop.index}} — {{qscore|round(2)}} điểm</b>
         <p class="mathtext">{{q.content|rich}}</p>
         {% if q.image_path and (not word_render or q.image_path != ns.last_image) %}
-          <img class="qimg {% if word_render %}wordqimg{% endif %}" src="/media/{{q.image_path}}" alt="Đề bài">
+          <img class="qimg {% if word_render %}wordqimg{% endif %}" src="{{ media_url(q.image_path) }}" alt="Đề bài" onerror="this.style.display='none'; var n=document.createElement('div'); n.className='muted'; n.textContent='Không tải được hình/công thức của câu hỏi.'; this.parentNode.insertBefore(n,this.nextSibling);">
         {% endif %}
         {% if q.image_path %}{% set ns.last_image = q.image_path %}{% endif %}
 
