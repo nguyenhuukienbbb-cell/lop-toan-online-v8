@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Kho đề{% endblock %}
+{% block heading %}Kho đề lưu trữ{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 class="simple-title">🗂️ Kho đề của tôi</h2>
+  <p class="simple-help">Lưu đề Word/PDF để dùng lại sau. Muốn thêm đề, chỉ cần chọn file và bấm <b>Lưu đề</b>.</p>
+  <div class="toolbar">
+    <span class="badge">{{total_items}} đề</span>
+    <span class="badge">Dung lượng: {{total_bytes|filesize}}</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="step"><span class="step-num">1</span><div><b>Thêm đề mới</b><div class="muted">Chọn file Word hoặc PDF. Các mục khác có thể để trống.</div></div></div>
+  <form method="post" enctype="multipart/form-data" class="compact-form">
+    <label>File đề *</label>
+    <input type="file" name="exam_file" accept=".docx,.doc,.pdf" required>
+
+    <label>Tên đề</label>
+    <input name="title" placeholder="Có thể để trống, hệ thống sẽ lấy tên file">
+
+    <div class="grid2">
+      <div><label>Môn học</label><select name="subject"><option>Toán</option><option>Tin học</option><option>Toán tiếng Anh</option></select></div>
+      <div><label>Khối</label><select name="grade"><option value="">Chưa chọn</option>{% for g in ['6','7','8','9'] %}<option value="{{g}}">Lớp {{g}}</option>{% endfor %}</select></div>
+    </div>
+
+    <details style="margin:4px 0 14px"><summary style="cursor:pointer;font-weight:700">Thông tin thêm (không bắt buộc)</summary><div style="margin-top:12px">
+      <label>Chủ đề</label><input name="topic" placeholder="Ví dụ: Phân số, Hình học">
+      <label>Năm học</label><input name="school_year" placeholder="Ví dụ: 2026-2027">
+      <label>Ghi chú</label><textarea name="description" rows="2" placeholder="Nguồn đề, học kỳ, mức độ..."></textarea>
+    </div></details>
+
+    <button class="green big-action">💾 Lưu đề</button>
+  </form>
+  <p class="muted" style="margin-bottom:0">Hệ thống tự kiểm tra file trùng để tiết kiệm dung lượng.</p>
+</div>
+
+<div class="card">
+  <div class="step"><span class="step-num">2</span><div><b>Tìm đề đã lưu</b><div class="muted">Không cần lọc nếu bạn muốn xem tất cả.</div></div></div>
+  <form method="get">
+    <div class="grid2">
+      <div><label>Tìm theo tên</label><input name="q" value="{{f_q}}" placeholder="Nhập tên đề hoặc chủ đề"></div>
+      <div><label>Môn học</label><select name="subject"><option value="">Tất cả môn</option>{% for x in ['Toán','Tin học','Toán tiếng Anh'] %}<option value="{{x}}" {% if f_subject==x %}selected{% endif %}>{{x}}</option>{% endfor %}</select></div>
+      <div><label>Khối</label><select name="grade"><option value="">Tất cả khối</option>{% for g in ['6','7','8','9'] %}<option value="{{g}}" {% if f_grade==g %}selected{% endif %}>Lớp {{g}}</option>{% endfor %}</select></div>
+      <div><label>Năm học</label><select name="school_year"><option value="">Tất cả năm học</option>{% for y in years %}<option value="{{y}}" {% if f_year==y %}selected{% endif %}>{{y}}</option>{% endfor %}</select></div>
+    </div>
+    <div class="action-row"><button>🔎 Tìm</button><a class="btn gray" href="/teacher/exam-archive">Hiện tất cả</a></div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="step"><span class="step-num">3</span><div><b>Danh sách đề</b><div class="muted">Mỗi đề chỉ hiện các nút cần dùng.</div></div></div>
+  {% for x in items %}
+    <div class="archive-item">
+      <h3>{{x.title}}</h3>
+      <div><span class="badge">{{x.subject}}</span>{% if x.grade %}<span class="badge">Lớp {{x.grade}}</span>{% endif %}{% if x.school_year %}<span class="badge">{{x.school_year}}</span>{% endif %}</div>
+      <p class="muted">{{x.file_name}} · {{x.file_size|filesize}}{% if x.created_at %} · {{x.created_at.strftime('%d/%m/%Y')}}{% endif %}</p>
+      {% if x.topic %}<p><b>Chủ đề:</b> {{x.topic}}</p>{% endif %}
+      {% if x.description %}<p>{{x.description}}</p>{% endif %}
+      <div class="action-row">
+        {% if x.preview_pdf_path %}<a class="btn" target="_blank" href="/teacher/exam-archive/{{x.id}}/file/preview">👁 Xem đề</a>{% endif %}
+        <a class="btn gray" href="/teacher/exam-archive/{{x.id}}/file/original">⬇ Tải file</a>
+        {% if x.file_name.lower().endswith('.docx') %}<form method="post" action="/teacher/exam-archive/{{x.id}}/create-assignment" onsubmit="return confirm('Tạo bài kiểm tra từ đề này?')"><button class="green">📝 Tạo bài kiểm tra</button></form>{% endif %}
+        <form method="post" action="/teacher/exam-archive/{{x.id}}/delete" onsubmit="return confirm('Bạn chắc chắn muốn xóa đề này?')"><button class="red">🗑 Xóa</button></form>
+      </div>
+    </div>
+  {% else %}
+    <div class="notice">Chưa có đề phù hợp. Hãy thêm đề ở bước 1.</div>
+  {% endfor %}
+</div>
+{% endblock %}

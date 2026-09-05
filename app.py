@@ -13,6 +13,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from io import BytesIO
 import os, re, random, uuid, json, hashlib, subprocess, tempfile, shutil, platform, unicodedata
+from urllib.parse import quote
 import requests
 import fitz
 from PIL import Image, ImageDraw
@@ -113,6 +114,24 @@ class Lesson(db.Model):
     classroom_id = db.Column(db.Integer, db.ForeignKey('classroom.id'), nullable=False)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     is_published = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class StoredExam(db.Model):
+    """Kho đề gốc của giáo viên. File nằm ở Supabase Storage/local; DB chỉ giữ metadata."""
+    id = db.Column(db.Integer, primary_key=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title = db.Column(db.String(220), nullable=False)
+    subject = db.Column(db.String(30), default='Toán')
+    grade = db.Column(db.String(20), default='')
+    topic = db.Column(db.String(160), default='')
+    school_year = db.Column(db.String(30), default='')
+    description = db.Column(db.Text, default='')
+    file_name = db.Column(db.String(255), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    file_mime = db.Column(db.String(120), default='application/octet-stream')
+    preview_pdf_path = db.Column(db.String(500), default='')
+    sha256 = db.Column(db.String(64), nullable=False)
+    file_size = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class BankQuestion(db.Model):
@@ -471,6 +490,30 @@ def convert_office_to_pdf_bytes(original_bytes, filename):
         with open(expected, 'rb') as f:
             return f.read()
 
+ARCHIVE_ALLOWED_EXTENSIONS = {'.docx', '.doc', '.pdf'}
+
+def archive_file_allowed(filename):
+    return os.path.splitext(secure_filename(filename or ''))[1].lower() in ARCHIVE_ALLOWED_EXTENSIONS
+
+def archive_access_allowed(item):
+    u = me()
+    if not u or not item:
+        return False
+    if u.role == 'admin':
+        return True
+    return u.role == 'teacher' and item.owner_id == u.id
+
+def pretty_bytes(value):
+    try:
+        n = float(value or 0)
+    except Exception:
+        n = 0
+    units = ['B','KB','MB','GB']
+    i = 0
+    while n >= 1024 and i < len(units)-1:
+        n /= 1024.0; i += 1
+    return f'{n:.1f} {units[i]}' if i else f'{int(n)} {units[i]}'
+
 def lesson_access_allowed(lesson):
     u = me()
     if not u or not lesson:
@@ -495,9 +538,27 @@ def save_docx_image(part):
     ctype = getattr(part, 'content_type', '') or ''
     ext_map = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif', 'image/webp': '.webp', 'image/x-emf': '.emf', 'image/x-wmf': '.wmf'}
     ext = ext_map.get(ctype, os.path.splitext(str(getattr(part, 'partname', '')))[1] or '.png')
-    # Trình duyệt không đọc EMF/WMF tốt; file mẫu MathType có preview PNG/JPG nên ưu tiên phần đó.
+    raw = part.blob
+
+    # Trình duyệt không đọc EMF/WMF tốt. Nếu Pillow mở được thì đổi sang PNG
+    # để các công thức/toán tử trích từ Word hiển thị được cả online lẫn local.
+    if ext.lower() in ('.emf', '.wmf') or ctype in ('image/x-emf', 'image/x-wmf'):
+        try:
+            im = Image.open(BytesIO(raw))
+            if getattr(im, 'mode', 'RGB') not in ('RGB', 'RGBA'):
+                im = im.convert('RGBA')
+            buf = BytesIO()
+            im.save(buf, 'PNG')
+            raw = buf.getvalue()
+            ext = '.png'
+            ctype = 'image/png'
+        except Exception:
+            # Nếu không chuyển được thì vẫn lưu nguyên bản; các câu có render Word
+            # sẽ còn có ảnh tổng của cả câu làm phương án dự phòng.
+            pass
+
     name = f'word_{uuid.uuid4().hex[:12]}{ext}'
-    return save_question_bytes(part.blob, name, ctype or None)
+    return save_question_bytes(raw, name, ctype or None)
 
 def paragraph_rich_text(doc, para, image_cache):
     """Giữ đúng thứ tự chữ + ảnh preview của công thức MathType/Equation trong Word."""
@@ -884,8 +945,8 @@ def render_word_question_images(path):
         return result
 
 
-def parse_word(path):
-    """Bộ nhập Word tổng quát V6.5.
+def parse_word(path, prefer_render=True):
+    """Bộ nhập Word tổng quát V9.2.2.
 
     Nhận các mẫu đã gặp trong 3 ngân hàng của người dùng:
     A/B/C/D, Đúng/Sai từng câu, Đúng/Sai nhiều mệnh đề, điền khuyết,
@@ -917,7 +978,7 @@ def parse_word(path):
             cur['lines'].append(text)
     if cur: blocks.append(cur)
 
-    rendered = render_word_question_images(path)
+    rendered = render_word_question_images(path) if prefer_render else {}
     out=[]
     for b in blocks:
         lines=b['lines']; sec=b.get('section','')
@@ -1056,8 +1117,28 @@ def normalize_short_answer(v):
     v = re.sub(r'\s+', '', v)
     return v
 
+def media_url(stored_path):
+    if not stored_path:
+        return ''
+    return '/media/' + quote(str(stored_path), safe='/:')
+
+
+def is_word_render_image(stored_path):
+    if not stored_path:
+        return False
+    raw = str(stored_path)
+    if raw.startswith('supabase:'):
+        raw = raw[len('supabase:'):]
+    raw = os.path.basename(raw)
+    return raw.startswith('wordq_')
+
+
 def render_rich(v):
-    """Hiển thị token ảnh nội tuyến [[img:file]] an toàn trong nội dung câu hỏi/đáp án."""
+    """Hiển thị token ảnh nội tuyến [[img:file]] an toàn trong nội dung câu hỏi/đáp án.
+
+    Bản 9.2.1 dùng route /media để đọc được cả ảnh local, ảnh Supabase và
+    các công thức/toán tử đã trích từ Word.
+    """
     if not v:
         return Markup('')
     text = str(v)
@@ -1066,8 +1147,12 @@ def render_rich(v):
     for ch in chunks:
         m = re.fullmatch(r'\[\[img:([^\]]+)\]\]', ch)
         if m:
-            fn = os.path.basename(m.group(1))
-            out.append(f'<img class="eqimg" src="/static/uploads/{fn}" alt="công thức">')
+            stored = m.group(1).strip()
+            src = media_url(stored)
+            out.append(
+                f'<img class="eqimg" src="{escape(src)}" alt="công thức" '
+                'onerror="this.style.display=\'none\';var n=document.createElement(\'span\');n.className=\'muted\';n.textContent=\' [Không tải được công thức]\';this.parentNode.insertBefore(n,this.nextSibling);">'
+            )
         else:
             out.append(str(escape(ch)).replace('\n','<br>'))
     return Markup(''.join(out))
@@ -1092,6 +1177,9 @@ def import_k12_items_to_assignment(a, grade='6', topic='Phân số'):
     db.session.commit(); return count
 
 app.jinja_env.filters['rich'] = render_rich
+app.jinja_env.filters['filesize'] = pretty_bytes
+app.jinja_env.globals['media_url'] = media_url
+app.jinja_env.globals['is_word_render_image'] = is_word_render_image
 
 def repair_k12_fraction_equations():
     """Sửa các câu 13/14 đã nạp từ V6.2 để không phải tạo lại đề hoặc mất dữ liệu."""
@@ -1564,6 +1652,171 @@ def delete_student(user_id):
         db.session.delete(u); db.session.commit(); flash('Đã xóa học sinh.', 'ok')
     return redirect(url_for('students'))
 
+@app.route('/teacher/exam-archive', methods=['GET', 'POST'])
+def exam_archive():
+    if not require_perm('assignments'):
+        flash('Bạn chưa được cấp quyền sử dụng Kho đề lưu trữ.', 'error')
+        return redirect(url_for('teacher_dashboard'))
+    if not teacher_only(): return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        upload = request.files.get('exam_file')
+        if not upload or not getattr(upload, 'filename', ''):
+            flash('Hãy chọn file đề Word hoặc PDF.', 'error')
+            return redirect(url_for('exam_archive'))
+        if not archive_file_allowed(upload.filename):
+            flash('Kho đề hỗ trợ .docx, .doc và .pdf.', 'error')
+            return redirect(url_for('exam_archive'))
+
+        raw = upload.read()
+        if not raw:
+            flash('File rỗng hoặc không đọc được.', 'error')
+            return redirect(url_for('exam_archive'))
+        digest = hashlib.sha256(raw).hexdigest()
+
+        # Chống trùng trong kho của chính giáo viên: không lưu thêm bản sao.
+        dup = StoredExam.query.filter_by(owner_id=me().id, sha256=digest).first()
+        if dup:
+            flash(f'File này đã có trong Kho đề với tên “{dup.title}”. Hệ thống không lưu trùng.', 'error')
+            return redirect(url_for('exam_archive'))
+
+        original_name = secure_filename(upload.filename) or ('de_thi' + os.path.splitext(upload.filename)[1].lower())
+        ext = os.path.splitext(original_name)[1].lower()
+        mime = upload.mimetype or {
+            '.pdf':'application/pdf',
+            '.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.doc':'application/msword',
+        }.get(ext, 'application/octet-stream')
+        key_base = f'exam-archive/{me().id}/{digest[:16]}'
+
+        try:
+            file_path = save_lesson_bytes(raw, key_base + ext, mime)
+            if ext == '.pdf':
+                preview_path = file_path  # không nhân đôi PDF để tiết kiệm Storage
+            else:
+                pdf_bytes = convert_office_to_pdf_bytes(raw, original_name)
+                preview_path = save_lesson_bytes(pdf_bytes, key_base + '_preview.pdf', 'application/pdf') if pdf_bytes else ''
+        except Exception as e:
+            flash('Không thể lưu file đề: ' + str(e)[:180], 'error')
+            return redirect(url_for('exam_archive'))
+
+        title = request.form.get('title','').strip() or os.path.splitext(original_name)[0]
+        item = StoredExam(
+            owner_id=me().id,
+            title=title,
+            subject=request.form.get('subject','Toán').strip() or 'Toán',
+            grade=request.form.get('grade','').strip(),
+            topic=request.form.get('topic','').strip(),
+            school_year=request.form.get('school_year','').strip(),
+            description=request.form.get('description','').strip(),
+            file_name=original_name,
+            file_path=file_path,
+            file_mime=mime,
+            preview_pdf_path=preview_path,
+            sha256=digest,
+            file_size=len(raw),
+        )
+        db.session.add(item); db.session.commit()
+        flash('Đã lưu đề vào Kho đề. File trùng sau này sẽ được tự động chặn.', 'ok')
+        return redirect(url_for('exam_archive'))
+
+    subject = request.args.get('subject','').strip()
+    grade = request.args.get('grade','').strip()
+    school_year = request.args.get('school_year','').strip()
+    q = request.args.get('q','').strip()
+    query = StoredExam.query
+    if me().role == 'teacher': query = query.filter(StoredExam.owner_id == me().id)
+    if subject: query = query.filter(StoredExam.subject == subject)
+    if grade: query = query.filter(StoredExam.grade == grade)
+    if school_year: query = query.filter(StoredExam.school_year.ilike(f'%{school_year}%'))
+    if q:
+        like = f'%{q}%'
+        query = query.filter(db.or_(StoredExam.title.ilike(like), StoredExam.topic.ilike(like), StoredExam.description.ilike(like), StoredExam.file_name.ilike(like)))
+    items = query.order_by(StoredExam.created_at.desc(), StoredExam.id.desc()).all()
+
+    total_q = StoredExam.query
+    if me().role == 'teacher': total_q = total_q.filter(StoredExam.owner_id == me().id)
+    total_items = total_q.count()
+    total_bytes = db.session.query(db.func.coalesce(db.func.sum(StoredExam.file_size), 0))
+    if me().role == 'teacher': total_bytes = total_bytes.filter(StoredExam.owner_id == me().id)
+    total_bytes = int(total_bytes.scalar() or 0)
+    years = [r[0] for r in total_q.with_entities(StoredExam.school_year).filter(StoredExam.school_year != '').distinct().order_by(StoredExam.school_year.desc()).all()]
+    return render_template('exam_archive.html', items=items, total_items=total_items, total_bytes=total_bytes,
+                           years=years, f_subject=subject, f_grade=grade, f_year=school_year, f_q=q)
+
+
+@app.route('/teacher/exam-archive/<int:item_id>/file/<kind>')
+def exam_archive_file(item_id, kind):
+    if not teacher_only(): return redirect(url_for('login'))
+    item = db.session.get(StoredExam, item_id)
+    if not archive_access_allowed(item): return 'Không có quyền', 403
+    if kind == 'preview':
+        stored = item.preview_pdf_path
+        name = os.path.splitext(item.file_name)[0] + '.pdf'
+        mime = 'application/pdf'
+        attachment = False
+    else:
+        stored = item.file_path
+        name = item.file_name
+        mime = item.file_mime or 'application/octet-stream'
+        attachment = True
+    raw = read_lesson_bytes(stored)
+    if raw is None: return 'Không tìm thấy file trên kho lưu trữ.', 404
+    return send_file(BytesIO(raw), mimetype=mime, as_attachment=attachment, download_name=name)
+
+
+@app.route('/teacher/exam-archive/<int:item_id>/delete', methods=['POST'])
+def exam_archive_delete(item_id):
+    if not require_perm('assignments') or not teacher_only(): return redirect(url_for('login'))
+    item = db.session.get(StoredExam, item_id)
+    if not archive_access_allowed(item): return 'Không có quyền', 403
+    original = item.file_path
+    preview = item.preview_pdf_path
+    db.session.delete(item); db.session.commit()
+    delete_lesson_storage(original)
+    if preview and preview != original: delete_lesson_storage(preview)
+    flash('Đã xóa đề khỏi Kho đề.', 'ok')
+    return redirect(url_for('exam_archive'))
+
+
+@app.route('/teacher/exam-archive/<int:item_id>/create-assignment', methods=['POST'])
+def exam_archive_create_assignment(item_id):
+    if not require_perm('assignments') or not teacher_only(): return redirect(url_for('login'))
+    item = db.session.get(StoredExam, item_id)
+    if not archive_access_allowed(item): return 'Không có quyền', 403
+    if os.path.splitext(item.file_name)[1].lower() != '.docx':
+        flash('Chức năng tạo bài kiểm tra tự động hiện cần file .docx. PDF/.doc vẫn được lưu và xem trong Kho đề.', 'error')
+        return redirect(url_for('exam_archive'))
+    raw = read_lesson_bytes(item.file_path)
+    if raw is None:
+        flash('Không đọc được file gốc trong Kho đề.', 'error')
+        return redirect(url_for('exam_archive'))
+
+    with tempfile.TemporaryDirectory(prefix='archive_exam_') as td:
+        src = os.path.join(td, item.file_name)
+        with open(src, 'wb') as f: f.write(raw)
+        items = parse_word(src, prefer_render=True)
+    if not items:
+        flash('Không tách được câu hỏi từ file này. File vẫn được giữ nguyên trong Kho đề.', 'error')
+        return redirect(url_for('exam_archive'))
+
+    a = Assignment(title=item.title, subject=item.subject or 'Toán', description=f'Tạo từ Kho đề: {item.file_name}',
+                   created_by=me().id, duration_minutes=45, score_scale=10.0, shuffle_questions=False,
+                   shuffle_options=False, show_result=False, show_answers=False, allow_retake=False, is_published=False)
+    db.session.add(a); db.session.flush()
+    order = 0
+    for x in items:
+        q = BankQuestion(owner_id=me().id, subject=item.subject or 'Toán', grade=item.grade or '', topic=item.topic or '',
+                         difficulty='Trung bình', domain='Đại số', qtype=x['qtype'], content=x['content'],
+                         option_a=x['opts']['A'], option_b=x['opts']['B'], option_c=x['opts']['C'], option_d=x['opts']['D'],
+                         correct_answer=x['correct'], explanation=x['explanation'], points=x['points'], image_path=x['image_path'])
+        db.session.add(q); db.session.flush(); order += 1
+        db.session.add(AssignmentQuestion(assignment_id=a.id, question_id=q.id, order_no=order))
+    db.session.commit()
+    flash(f'Đã tạo bài kiểm tra nháp từ Kho đề với {len(items)} mục. Hãy chọn lớp và cài thời gian trước khi xuất bản.', 'ok')
+    return redirect(url_for('edit_assignment', assignment_id=a.id))
+
+
 @app.route('/teacher/lessons', methods=['GET', 'POST'])
 def lessons():
     if not require_perm('lessons'):
@@ -1905,12 +2158,12 @@ def bank_upload_word():
     if not f or not f.filename.lower().endswith('.docx'):
         flash('Hãy chọn file Word .docx', 'error'); return redirect(url_for('question_bank'))
     fn = f'{uuid.uuid4().hex[:8]}_{secure_filename(f.filename)}'; path = os.path.join(app.config['UPLOAD_FOLDER'], fn); f.save(path)
-    items = parse_word(path)
+    items = parse_word(path, prefer_render=True)
     for x in items:
-        db.session.add(BankQuestion(owner_id=me().id, grade=request.form.get('grade', ''), topic=request.form.get('topic', ''),
+        db.session.add(BankQuestion(owner_id=me().id, subject=request.form.get('subject', 'Toán').strip() or 'Toán', grade=request.form.get('grade', ''), topic=request.form.get('topic', ''),
             difficulty=request.form.get('difficulty', 'Trung bình'), domain=request.form.get('domain', 'Đại số'), qtype=x['qtype'], content=x['content'], option_a=x['opts']['A'], option_b=x['opts']['B'], option_c=x['opts']['C'], option_d=x['opts']['D'],
             correct_answer=x['correct'], explanation=x['explanation'], points=x['points'], image_path=x['image_path']))
-    db.session.commit(); rendered_count=sum(1 for x in items if x.get('image_path')); flash(f'Đã nhập {len(items)} mục từ Word. {rendered_count} mục được render theo bố cục Word; trắc nghiệm có đáp án sẽ tự chấm.', 'ok'); return redirect(url_for('question_bank'))
+    db.session.commit(); rendered_count=sum(1 for x in items if x.get('image_path')); flash(f'Đã nhập {len(items)} mục từ Word. {rendered_count} mục được giữ nguyên theo bố cục Word (công thức + hình minh họa); trắc nghiệm có đáp án sẽ tự chấm.', 'ok'); return redirect(url_for('question_bank'))
 
 @app.route('/teacher/question/<int:qid>/delete', methods=['POST'])
 def delete_bank_question(qid):
@@ -2052,7 +2305,7 @@ def assignment_upload_word(assignment_id):
     if not f or not f.filename.lower().endswith('.docx'):
         flash('Hãy chọn file Word .docx.', 'error'); return redirect(url_for('edit_assignment', assignment_id=a.id))
     fn = f'{uuid.uuid4().hex[:8]}_{secure_filename(f.filename)}'; path = os.path.join(app.config['UPLOAD_FOLDER'], fn); f.save(path)
-    items = parse_word(path); order = AssignmentQuestion.query.filter_by(assignment_id=a.id).count()
+    items = parse_word(path, prefer_render=True); order = AssignmentQuestion.query.filter_by(assignment_id=a.id).count()
     for x in items:
         q = BankQuestion(owner_id=me().id, subject=request.form.get('subject','Toán').strip() or 'Toán', grade=request.form.get('grade', '').strip(), topic=request.form.get('topic', '').strip(),
                          difficulty=request.form.get('difficulty', 'Trung bình').strip() or 'Trung bình', domain=request.form.get('domain', 'Đại số').strip() or 'Đại số', qtype=x['qtype'], content=x['content'], option_a=x['opts']['A'], option_b=x['opts']['B'], option_c=x['opts']['C'], option_d=x['opts']['D'],
@@ -2070,7 +2323,7 @@ def import_k12_fraction_sample_route(assignment_id):
     sample_path = os.path.join(os.path.dirname(__file__), 'samples', 'CauHoi_PhanSo_CoDapAn_K12Online.docx')
     if not os.path.exists(sample_path):
         flash('Không tìm thấy file đề mẫu đi kèm.', 'error'); return redirect(url_for('edit_assignment', assignment_id=a.id))
-    items = parse_word(sample_path); order = AssignmentQuestion.query.filter_by(assignment_id=a.id).count()
+    items = parse_word(sample_path, prefer_render=True); order = AssignmentQuestion.query.filter_by(assignment_id=a.id).count()
     for x in items:
         q = BankQuestion(owner_id=me().id, grade='6', topic='Phân số', difficulty='Trung bình', domain='Đại số', qtype=x['qtype'], content=x['content'],
                          option_a=x['opts']['A'], option_b=x['opts']['B'], option_c=x['opts']['C'], option_d=x['opts']['D'],
@@ -2656,6 +2909,16 @@ def run_v8_migrations():
 
         migrations.append((916, migration_916))
 
+        def migration_930():
+            # Bảng StoredExam được db.create_all() tạo tự động; migration thêm index cho tìm kiếm/chống trùng.
+            insp10 = inspect(db.engine)
+            if 'stored_exam' in insp10.get_table_names():
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_stored_exam_owner_created ON stored_exam (owner_id, created_at)"))
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_stored_exam_owner_sha ON stored_exam (owner_id, sha256)"))
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_stored_exam_filter ON stored_exam (subject, grade, school_year)"))
+
+        migrations.append((930, migration_930))
+
         for version, fn in migrations:
             if version in done:
                 continue
@@ -2727,7 +2990,7 @@ with app.app_context():
 def health():
     return {
         'status': 'ok',
-        'version': '9.2.0-question-image-storage-fix',
+        'version': '9.3.1-simple-ui',
         'timezone': APP_TIMEZONE,
         'database': 'postgresql' if str(app.config['SQLALCHEMY_DATABASE_URI']).startswith('postgresql') else 'sqlite'
     }, 200
@@ -2736,7 +2999,7 @@ def health():
 def ready():
     try:
         db.session.execute(text('SELECT 1'))
-        return {'status': 'ready', 'version': '9.2.0-question-image-storage-fix'}, 200
+        return {'status': 'ready', 'version': '9.3.1-simple-ui'}, 200
     except Exception as e:
         db.session.rollback()
         return {'status': 'not-ready', 'error': str(e)[:160]}, 503
