@@ -1701,6 +1701,65 @@ def teacher_dashboard():
     return render_template('teacher_dashboard.html', classes=classes, assignments=assignments, students=students,
                            published=published, submitted=submitted, lessons=lessons, questions=questions)
 
+@app.route('/teacher/assignment/<int:assignment_id>/delete', methods=['POST'])
+def delete_assignment(assignment_id):
+    """Xóa một bài kiểm tra và dữ liệu phát sinh của riêng bài đó.
+
+    Không xóa BankQuestion để các câu gốc vẫn còn trong Ngân hàng câu hỏi.
+    """
+    if not require_perm('assignments'):
+        flash('Bạn chưa được cấp quyền quản lý bài kiểm tra.', 'error')
+        return redirect(url_for('teacher_dashboard'))
+    if not teacher_only():
+        return redirect(url_for('login'))
+
+    a = db.session.get(Assignment, assignment_id)
+    if not a or a.created_by != me().id:
+        flash('Không tìm thấy bài kiểm tra hoặc bạn không có quyền xóa.', 'error')
+        return redirect(url_for('teacher_dashboard'))
+
+    try:
+        # Xóa bài làm và câu trả lời thuộc bài kiểm tra này trước để không vướng khóa ngoại.
+        submission_ids = [
+            row[0] for row in db.session.query(Submission.id)
+            .filter(Submission.assignment_id == a.id)
+            .all()
+        ]
+        deleted_answers = 0
+        if submission_ids:
+            deleted_answers = Answer.query.filter(
+                Answer.submission_id.in_(submission_ids)
+            ).delete(synchronize_session=False)
+
+        deleted_submissions = Submission.query.filter_by(
+            assignment_id=a.id
+        ).delete(synchronize_session=False)
+
+        # Xóa các liên kết đề - câu hỏi/lớp; KHÔNG xóa BankQuestion.
+        AssignmentQuestion.query.filter_by(
+            assignment_id=a.id
+        ).delete(synchronize_session=False)
+        AssignmentClassroom.query.filter_by(
+            assignment_id=a.id
+        ).delete(synchronize_session=False)
+
+        title = a.title
+        db.session.delete(a)
+        db.session.commit()
+
+        flash(
+            f'Đã xóa bài kiểm tra “{title}”. '
+            f'Đã xóa {deleted_submissions} lượt làm và {deleted_answers} câu trả lời liên quan. '
+            'Các câu hỏi gốc trong Ngân hàng câu hỏi vẫn được giữ.',
+            'ok'
+        )
+    except Exception as e:
+        db.session.rollback()
+        app.logger.exception('DELETE ASSIGNMENT FAILED')
+        flash('Không thể xóa bài kiểm tra: ' + str(e)[:180], 'error')
+
+    return redirect(url_for('teacher_dashboard'))
+
 @app.route('/teacher/settings', methods=['GET', 'POST'])
 def settings():
     if not teacher_only(): return redirect(url_for('login'))
