@@ -2677,14 +2677,15 @@ def edit_assignment(assignment_id):
             if qid not in existing:
                 order += 1; db.session.add(AssignmentQuestion(assignment_id=a.id, question_id=qid, order_no=order))
         db.session.commit(); flash('Đã thêm câu hỏi vào đề.', 'ok')
-    # Lấy câu trong đề bằng 1 truy vấn JOIN thay vì db.session.get() từng câu.
-    selected = [
-        row[0] for row in db.session.query(BankQuestion)
+    # Lấy câu trong đề bằng 1 truy vấn JOIN.
+    # SQLAlchemy trả trực tiếp BankQuestion object, không phải tuple row[0].
+    selected = (
+        db.session.query(BankQuestion)
         .join(AssignmentQuestion, AssignmentQuestion.question_id == BankQuestion.id)
         .filter(AssignmentQuestion.assignment_id == a.id)
         .order_by(AssignmentQuestion.order_no)
         .all()
-    ]
+    )
     bank_subject = request.args.get('bank_subject', a.subject or '').strip()
     bank_grade = request.args.get('bank_grade', '').strip()
     bank_qtype = request.args.get('bank_qtype', '').strip()
