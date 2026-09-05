@@ -2631,6 +2631,94 @@ def delete_selected_bank_questions():
     return redirect(url_for('question_bank'))
 
 
+
+@app.route('/teacher/question-bank/delete-filtered-permanent', methods=['POST'])
+def delete_filtered_bank_questions_permanent():
+    """Xóa VĨNH VIỄN câu hỏi theo đúng bộ lọc hiện tại.
+
+    Có xác nhận 2 lớp. Xóa cả liên kết AssignmentQuestion và Answer liên quan
+    để không vướng khóa ngoại. Không xóa Assignment/Submission.
+    """
+    if not require_perm('question_bank'):
+        flash('Bạn chưa được cấp quyền Ngân hàng câu hỏi.', 'error')
+        return redirect(url_for('teacher_dashboard'))
+    if not teacher_only():
+        return redirect(url_for('login'))
+
+    confirm_check = request.form.get('confirm_check') == '1'
+    confirm_text = (request.form.get('confirm_text') or '').strip().upper()
+    if not confirm_check or confirm_text != 'XOA VINH VIEN':
+        flash('Chưa xác nhận xóa vĩnh viễn. Hãy tích xác nhận và nhập đúng XOA VINH VIEN.', 'error')
+        return redirect(url_for('question_bank'))
+
+    # Filters
+    subject = (request.form.get('subject') or '').strip()
+    grade = (request.form.get('grade') or '').strip()
+    domain = (request.form.get('domain') or '').strip()
+    topic = (request.form.get('topic') or '').strip()
+    difficulty = (request.form.get('difficulty') or '').strip()
+    qtype = (request.form.get('qtype') or '').strip()
+    keyword = (request.form.get('keyword') or '').strip()
+
+    q = BankQuestion.query.filter(BankQuestion.owner_id == me().id)
+
+    if subject:
+        q = q.filter(BankQuestion.subject == subject)
+    if grade:
+        q = q.filter(BankQuestion.grade == grade)
+    if domain:
+        q = q.filter(BankQuestion.domain == domain)
+    if topic:
+        q = q.filter(BankQuestion.topic.ilike(f'%{topic}%'))
+    if difficulty:
+        q = q.filter(BankQuestion.difficulty == difficulty)
+    if qtype:
+        q = q.filter(BankQuestion.qtype == qtype)
+    if keyword:
+        q = q.filter(BankQuestion.content.ilike(f'%{keyword}%'))
+
+    target_ids = [row[0] for row in q.with_entities(BankQuestion.id).all()]
+
+    if not target_ids:
+        flash('Không có câu hỏi nào phù hợp bộ lọc để xóa.', 'error')
+        return redirect(url_for(
+            'question_bank',
+            subject=subject, grade=grade, domain=domain, topic=topic,
+            difficulty=difficulty, qtype=qtype, q=keyword
+        ))
+
+    try:
+        # Delete answers pointing to target questions.
+        deleted_answers = Answer.query.filter(
+            Answer.question_id.in_(target_ids)
+        ).delete(synchronize_session=False)
+
+        # Delete assignment-question links.
+        deleted_links = AssignmentQuestion.query.filter(
+            AssignmentQuestion.question_id.in_(target_ids)
+        ).delete(synchronize_session=False)
+
+        # Finally delete questions themselves.
+        deleted_questions = BankQuestion.query.filter(
+            BankQuestion.owner_id == me().id,
+            BankQuestion.id.in_(target_ids)
+        ).delete(synchronize_session=False)
+
+        db.session.commit()
+
+        flash(
+            f'Đã XÓA VĨNH VIỄN {deleted_questions} câu hỏi theo bộ lọc. '
+            f'Đã xóa {deleted_links} liên kết đề và {deleted_answers} câu trả lời liên quan.',
+            'ok'
+        )
+    except Exception as e:
+        db.session.rollback()
+        app.logger.exception('DELETE FILTERED QUESTIONS PERMANENT FAILED')
+        flash('Không thể xóa vĩnh viễn theo bộ lọc: ' + str(e)[:220], 'error')
+
+    return redirect(url_for('question_bank'))
+
+
 @app.route('/teacher/question-bank/delete-all', methods=['POST'])
 def delete_all_bank_questions():
     """Làm trống ngân hàng bằng truy vấn theo lô, nhanh hơn với hàng trăm/nghìn câu."""
