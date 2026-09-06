@@ -1,0 +1,18 @@
+V9.5.9 - DANG NHAP DEP, BAM MAU, NHE
+
+Muc tieu ban nay:
+1) Giong mau nhat co the
+2) Sang hon, hien dai hon
+3) Nhe hon de load nhanh hon
+
+Da chinh:
+- Bo cuc 2 cot bam mau sat hon
+- Cot trai mang phong cach poster, co sach, coc, laptop, chau cay
+- Khung dang nhap ben phai gon, sang, can doi hon
+- Khong dung anh nen nang; chi dung CSS + SVG inline de nhe va load nhanh
+- Van giu theo yeu cau: KHONG dang nhap bang Google/Microsoft
+
+Cach cap nhat:
+1. Giai nen de len du an cu
+2. Commit va push len GitHub
+3. Render tu deploy lai

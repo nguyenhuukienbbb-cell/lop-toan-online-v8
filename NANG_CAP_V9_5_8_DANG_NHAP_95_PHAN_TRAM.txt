@@ -1,0 +1,14 @@
+V9.5.8 - GIAO DIỆN ĐĂNG NHẬP BÁM SÁT 95%
+
+Điểm đã chỉnh:
+- Bố cục hai cột sát mẫu hơn.
+- Cột trái đậm chất poster, chữ Cô Chuyền kiểu viết tay lớn hơn.
+- Thêm nét gạch hồng, tim, ghi chú bên phải, máy bay giấy.
+- Cảnh bàn học hoàn chỉnh hơn: sách, cốc, laptop, chậu cây.
+- Khung đăng nhập lớn, sáng, cân đối hơn.
+- Giữ theo yêu cầu trước: KHÔNG có nút đăng nhập Google/Microsoft.
+
+Cách dùng:
+1. Giải nén đè lên dự án cũ.
+2. Commit / push GitHub.
+3. Render sẽ tự deploy lại.

@@ -1,0 +1,20 @@
+V9.5.4 - SIDEBAR PREMIUM
+
+Đã áp dụng thiết kế sidebar mới trực tiếp vào hệ thống:
+- Nền gradient xanh navy/blue.
+- Logo dạng card nổi.
+- Tiêu đề + tagline.
+- Menu bo tròn, icon nằm trong ô riêng.
+- Mục đang mở tự động highlight.
+- Hiệu ứng hover nhẹ.
+- Chia nhóm Dùng thường xuyên / Quản lý / Khác.
+- Có mũi tên điều hướng bên phải.
+- Thêm câu slogan cuối sidebar.
+- Responsive: màn hình nhỏ sidebar tự thu gọn còn icon.
+- Giữ nguyên đường dẫn, quyền và toàn bộ chức năng cũ.
+- eLearning/SCORM V9.5.3 được giữ nguyên.
+
+File thay đổi chính:
+templates/base.html
+
+Có thể upload toàn bộ source V9.5.4 lên GitHub để đảm bảo đồng bộ.

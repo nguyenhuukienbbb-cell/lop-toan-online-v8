@@ -1,0 +1,8 @@
+V9.5.7 - ĐĂNG NHẬP BÁM SÁT ẢNH MẪU
+
+- Bố cục lại sát ảnh mẫu hơn.
+- Bên trái có phong cách poster: chữ lớn, chữ Cô Chuyền dạng viết tay.
+- Có đồ trang trí bàn học: chồng sách, cốc, laptop, chậu cây.
+- Bên phải là thẻ đăng nhập to, cân đối, có ghi nhớ đăng nhập và quên mật khẩu.
+- Không còn khu đăng nhập Google/Microsoft theo yêu cầu trước đó.
+- Có ghi chú góc phải và biểu tượng sách giống tinh thần ảnh mẫu.

@@ -1,0 +1,20 @@
+V9.6.0 - LOGIN 99% THEO MẪU + HIỆU ỨNG ĐẸP
+
+Mục tiêu:
+- Bám sát mẫu tối đa bằng HTML/CSS/SVG.
+- Không dùng ảnh nền nặng.
+- Giữ hiệu ứng đẹp nhưng nhẹ.
+
+Hiệu ứng:
+- Logo xuất hiện nhẹ.
+- Khối đăng nhập fade-in.
+- Đốm sáng nền pulse nhẹ.
+- Máy bay giấy chuyển động nhẹ.
+- Hình blob trái chuyển động rất nhỏ.
+- Hover nút và các tính năng.
+- Tự tắt animation nếu thiết bị bật prefers-reduced-motion.
+
+Giữ nguyên:
+- Chỉ đăng nhập tài khoản/mật khẩu.
+- Không Google/Microsoft.
+- Responsive mobile.

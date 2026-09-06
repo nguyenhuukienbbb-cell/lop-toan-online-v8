@@ -1,0 +1,13 @@
+V9.5.5 - GIAO DIỆN ĐĂNG NHẬP PREMIUM
+
+- Tiêu đề: Lớp Học Online Cô Chuyền
+- Giao diện 2 cột hiện đại trên desktop.
+- Mobile tự chuyển sang 1 cột.
+- Chỉ giữ Tài khoản + Mật khẩu + Đăng nhập.
+- Bỏ hoàn toàn giao diện Google/Microsoft.
+- Bỏ dòng “Google chưa cấu hình Client ID/Secret”.
+- Có nút hiện/ẩn mật khẩu.
+- Không thay đổi logic tài khoản giáo viên/học sinh/Admin.
+
+File chính thay đổi:
+templates/login.html

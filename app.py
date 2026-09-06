@@ -4355,7 +4355,7 @@ with app.app_context():
 def health():
     return {
         'status': 'ok',
-        'version': '9.5.3-scorm-tracking',
+        'version': '9.6.0-login-99percent-fx',
         'timezone': APP_TIMEZONE,
         'database': 'postgresql' if str(app.config['SQLALCHEMY_DATABASE_URI']).startswith('postgresql') else 'sqlite'
     }, 200
@@ -4364,7 +4364,7 @@ def health():
 def ready():
     try:
         db.session.execute(text('SELECT 1'))
-        return {'status': 'ready', 'version': '9.5.3-scorm-tracking'}, 200
+        return {'status': 'ready', 'version': '9.6.0-login-99percent-fx'}, 200
     except Exception as e:
         db.session.rollback()
         return {'status': 'not-ready', 'error': str(e)[:160]}, 503

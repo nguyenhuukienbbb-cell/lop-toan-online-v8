@@ -1,0 +1,12 @@
+V9.5.6 - LOGIN BÁM SÁT MẪU
+
+- Bám sát giao diện mẫu đã chọn hơn.
+- Logo sách là SVG, không còn emoji thô.
+- Panel trái xanh premium, có đường cong trắng.
+- Tiêu đề lớn: Lớp Học Online / Cô Chuyền.
+- 4 dòng tính năng dạng card mờ.
+- Khung đăng nhập lớn hơn, căn giữa.
+- Input và nút đăng nhập lớn, bo góc.
+- Chỉ tài khoản + mật khẩu.
+- Không Google/Microsoft.
+- Responsive tốt trên mobile.

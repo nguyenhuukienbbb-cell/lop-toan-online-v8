@@ -2,5 +2,291 @@
 *{box-sizing:border-box}body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:#f5f7fb;color:#1f2937;font-size:15px}a{text-decoration:none}.layout{display:flex;min-height:100vh}.side{width:230px;background:#173a78;color:#fff;padding:16px 12px;position:sticky;top:0;height:100vh;overflow-y:auto}.brand{font-size:19px;font-weight:800;padding:10px 10px 18px;border-bottom:1px solid #ffffff2b;margin-bottom:12px}.side a{display:flex;align-items:center;gap:8px;color:#fff;padding:11px 12px;border-radius:9px;margin:4px 0;font-weight:600}.side a:hover{background:#ffffff1c}.main{flex:1;min-width:0}.top{min-height:64px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;padding:12px 22px;position:sticky;top:0;z-index:5}.profile{display:flex;align-items:center;gap:9px}.avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;background:#dbeafe;display:grid;place-items:center;font-weight:800;color:#17418f}.content{padding:22px;max-width:1250px;margin:auto}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}.card{background:#fff;border:1px solid #e5eaf2;border-radius:12px;padding:18px;box-shadow:0 2px 8px #00000008;margin-bottom:16px}.card h2,.card h3{margin-top:0}.stat small{color:#64748b}.stat b{font-size:27px;color:#173a78;display:block;margin-top:6px}.muted{color:#64748b}.btn,button{background:#225cc5;color:#fff;border:0;border-radius:8px;padding:10px 14px;cursor:pointer;display:inline-block;font-weight:700;line-height:1.25}.btn:hover,button:hover{filter:brightness(.96)}.green{background:#18864b!important}.red{background:#c63d48!important}.gray{background:#6b7280!important}.orange{background:#dc7b16!important}input,select,textarea{width:100%;padding:11px 12px;border:1px solid #cfd7e4;border-radius:8px;margin:6px 0 12px;background:#fff;font-size:15px}label{font-weight:600;color:#374151}input[type=checkbox],input[type=radio]{width:auto}table{width:100%;border-collapse:collapse}th,td{padding:11px;border-bottom:1px solid #e7ebf2;text-align:left;vertical-align:top}th{background:#f7f9fc}.flash{padding:12px 14px;border-radius:8px;margin-bottom:14px;background:#dcfce7}.flash.error{background:#fee2e2}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#e8efff;color:#173a78;font-size:12px;margin:2px 2px 2px 0}.q{padding:16px 0;border-bottom:1px solid #e5e7eb}.option{display:block;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin:7px 0}.login-wrap{min-height:100vh;display:grid;place-items:center;background:#eef4ff}.login{width:min(430px,92vw)}.login .brand2{text-align:center;font-size:27px;font-weight:800;color:#173a78;margin-bottom:20px}.hero{background:#173a78;color:white}.hero .muted{color:#dbeafe}.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.deadline{color:#b45309;font-weight:700}.expired{color:#b91c1c;font-weight:700}.mathtext{white-space:pre-wrap;line-height:1.7}.qimg{display:block;max-width:100%;max-height:420px;object-fit:contain;margin:10px 0;border-radius:8px}.wordqimg{max-height:none;width:min(100%,950px);height:auto;border:1px solid #edf1f7;background:white}.answer-letters{display:grid;grid-template-columns:repeat(4,minmax(70px,120px));gap:10px;margin:12px 0}.letter-option{text-align:center;font-size:18px;cursor:pointer}.letter-option input{margin-right:7px}.class-checks{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0 14px}.class-checks label{border:1px solid #d7dfeb;border-radius:8px;padding:9px;background:#f8fafc}.notice{padding:12px;border-radius:8px;background:#eff6ff;border:1px solid #bfdbfe;margin-bottom:14px}.status{display:inline-block;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700}.status.draft{background:#e7eefc;color:#31558f}.status.scheduled{background:#fff3cd;color:#8a5a00}.status.active{background:#dcfce7;color:#166534}.status.ended{background:#fee2e2;color:#991b1b}.publish-card{display:flex;align-items:center;justify-content:space-between;gap:18px;border:2px solid #dbe8ff}.big-action{font-size:16px;font-weight:800;padding:12px 18px}.eqimg{display:inline-block;vertical-align:middle;max-height:54px;max-width:240px;margin:0 3px}.simple-title{font-size:22px;margin:0 0 6px}.simple-help{margin:0 0 16px;color:#64748b}.action-row{display:flex;gap:8px;flex-wrap:wrap}.archive-item{border:1px solid #e3e8f0;border-radius:10px;padding:15px;margin:10px 0;background:#fff}.archive-item h3{margin:0 0 8px}.step{display:flex;align-items:center;gap:10px;margin-bottom:14px}.step-num{width:30px;height:30px;border-radius:50%;background:#173a78;color:#fff;display:grid;place-items:center;font-weight:800;flex:none}.compact-form{max-width:760px}.menu-section{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#b9c9ea;padding:14px 12px 4px}
 @media(max-width:900px){.side{width:72px}.side .txt,.brand span,.menu-section{display:none}.content{padding:14px}.grid{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}.side a{justify-content:center;font-size:18px;padding:11px 8px}}
 @media(max-width:600px){.grid{grid-template-columns:1fr}.answer-letters{grid-template-columns:repeat(2,1fr)}.class-checks{grid-template-columns:1fr}.top{padding:10px 14px}.profile span{display:none}.btn,button{padding:10px 12px}.action-row .btn,.action-row button{flex:1;text-align:center}}
+
+/* ===== V9.5.4 PREMIUM SIDEBAR ===== */
+:root{
+  --sb-w:286px;
+  --sb-bg1:#061f4f;
+  --sb-bg2:#073878;
+  --sb-bg3:#0b4ca0;
+  --sb-text:#f8fbff;
+  --sb-muted:#8fc5ff;
+  --sb-line:rgba(147,197,253,.22);
+  --sb-card:rgba(255,255,255,.055);
+  --sb-card-hover:rgba(255,255,255,.105);
+  --sb-active1:#1f8dff;
+  --sb-active2:#1262dc;
+}
+.side{
+  width:var(--sb-w);
+  padding:0;
+  background:
+    radial-gradient(circle at 88% 4%,rgba(28,120,255,.38),transparent 24%),
+    radial-gradient(circle at -20% 88%,rgba(0,174,255,.18),transparent 28%),
+    linear-gradient(165deg,var(--sb-bg1) 0%,var(--sb-bg2) 55%,#06295f 100%);
+  color:var(--sb-text);
+  border-right:1px solid rgba(255,255,255,.09);
+  box-shadow:16px 0 40px rgba(3,24,66,.12);
+  scrollbar-width:thin;
+  scrollbar-color:rgba(147,197,253,.25) transparent;
+}
+.side::-webkit-scrollbar{width:5px}
+.side::-webkit-scrollbar-thumb{background:rgba(147,197,253,.25);border-radius:99px}
+.sidebar-inner{min-height:100%;display:flex;flex-direction:column;padding:18px 14px 16px}
+.brand{
+  padding:7px 8px 18px;
+  margin:0 0 8px;
+  border:0;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  position:relative;
+}
+.brand:after{
+  content:"";
+  position:absolute;
+  left:8px;right:8px;bottom:2px;
+  height:1px;
+  background:linear-gradient(90deg,rgba(147,197,253,.4),rgba(147,197,253,.06));
+}
+.brand-logo{
+  width:52px;height:52px;flex:0 0 52px;
+  display:grid;place-items:center;
+  border-radius:16px;
+  font-size:28px;
+  background:linear-gradient(145deg,#2ea1ff,#1557d6);
+  border:1px solid rgba(255,255,255,.22);
+  box-shadow:0 10px 24px rgba(0,107,255,.30),inset 0 1px 0 rgba(255,255,255,.28);
+}
+.brand-copy{min-width:0}
+.brand-title{
+  display:block;
+  font-size:18px;
+  line-height:1.25;
+  font-weight:900;
+  letter-spacing:-.02em;
+  color:#fff;
+  text-shadow:0 2px 10px rgba(0,0,0,.14);
+}
+.brand-sub{
+  display:block;
+  margin-top:4px;
+  font-size:11px;
+  font-weight:500;
+  line-height:1.35;
+  color:#9bcaff;
+}
+.menu-section{
+  margin:12px 4px 5px;
+  padding:7px 8px;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.13em;
+  color:#72b7ff;
+  display:flex;
+  align-items:center;
+  gap:9px;
+}
+.menu-section:before{
+  content:"";
+  width:7px;height:7px;border-radius:3px;
+  background:linear-gradient(135deg,#55c3ff,#2874ff);
+  box-shadow:0 0 0 4px rgba(64,154,255,.10);
+}
+.menu-section:after{
+  content:"";
+  height:1px;
+  flex:1;
+  background:linear-gradient(90deg,rgba(105,181,255,.34),transparent);
+}
+.side .nav-link{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  color:rgba(255,255,255,.90);
+  padding:8px 9px;
+  margin:3px 0;
+  border-radius:13px;
+  min-height:46px;
+  font-size:14px;
+  font-weight:700;
+  position:relative;
+  border:1px solid transparent;
+  transition:transform .16s ease,background .16s ease,border-color .16s ease,box-shadow .16s ease;
+}
+.side .nav-link:hover{
+  background:var(--sb-card-hover);
+  border-color:rgba(147,197,253,.12);
+  transform:translateX(2px);
+}
+.side .nav-link.active{
+  color:#fff;
+  background:linear-gradient(100deg,var(--sb-active1),var(--sb-active2));
+  border-color:rgba(255,255,255,.16);
+  box-shadow:0 9px 20px rgba(0,82,200,.28),inset 0 1px 0 rgba(255,255,255,.18);
+}
+.nav-ico{
+  width:34px;height:34px;flex:0 0 34px;
+  border-radius:10px;
+  display:grid;place-items:center;
+  font-size:18px;
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.07);
+}
+.nav-link.active .nav-ico{
+  background:rgba(255,255,255,.18);
+  border-color:rgba(255,255,255,.16);
+}
+.nav-arrow{
+  margin-left:auto;
+  font-size:18px;
+  line-height:1;
+  color:#73b9ff;
+  opacity:.72;
+  transform:translateX(-1px);
+}
+.nav-link.active .nav-arrow{color:#fff;opacity:.95}
+.side-spacer{flex:1;min-height:14px}
+.sidebar-quote{
+  margin:16px 4px 2px;
+  padding:13px 14px 12px;
+  border:1px solid rgba(96,165,250,.26);
+  border-radius:15px;
+  background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.025));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+}
+.sidebar-quote .quote-text{
+  color:#a9d2ff;
+  font-size:11px;
+  line-height:1.5;
+  font-style:italic;
+}
+.sidebar-quote .quote-foot{
+  margin-top:8px;
+  padding-top:8px;
+  border-top:1px solid rgba(147,197,253,.13);
+  color:#66b7ff;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.12em;
+}
+.main{width:calc(100% - var(--sb-w))}
+.top{
+  box-shadow:0 1px 12px rgba(15,23,42,.04);
+  backdrop-filter:saturate(1.2) blur(10px);
+}
+@media(max-width:900px){
+  :root{--sb-w:78px}
+  .side{width:var(--sb-w)}
+  .sidebar-inner{padding:12px 8px}
+  .brand{padding:4px 5px 14px;justify-content:center}
+  .brand-logo{width:46px;height:46px;flex-basis:46px;border-radius:14px}
+  .brand-copy,.side .txt,.menu-section,.sidebar-quote,.nav-arrow{display:none!important}
+  .side .nav-link{justify-content:center;padding:7px;margin:4px 0;min-height:48px}
+  .nav-ico{width:38px;height:38px;flex-basis:38px}
+  .main{width:calc(100% - var(--sb-w))}
+}
+@media(max-width:600px){
+  :root{--sb-w:66px}
+  .sidebar-inner{padding:10px 6px}
+  .brand-logo{width:42px;height:42px;flex-basis:42px;font-size:23px}
+  .nav-ico{width:36px;height:36px;flex-basis:36px;font-size:17px}
+  .side .nav-link{padding:5px;min-height:44px}
+}
+
 </style>
-<script>window.MathJax={tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']]},svg:{fontCache:'global'}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script></head><body>{% if me %}<div class="layout"><aside class="side"><div class="brand">📘 <span>{{site_setting.site_title if site_setting else 'Lớp Học Online'}}</span></div>{% if me.role in ['teacher','admin'] %}<div class="menu-section">Dùng thường xuyên</div><a href="/teacher">🏠 <span class="txt">Tổng quan</span></a>{% if has_perm("lessons") %}<a href="/teacher/lessons">📚 <span class="txt">Bài giảng</span></a><a href="/teacher/elearning">🎓 <span class="txt">eLearning</span></a>{% endif %}{% if has_perm("assignments") %}<a href="/teacher/assignments/new">📝 <span class="txt">Bài kiểm tra</span></a><a href="/teacher/exam-archive">🗂️ <span class="txt">Kho đề lưu trữ</span></a>{% endif %}{% if has_perm("question_bank") %}<a href="/teacher/question-bank">🧠 <span class="txt">Ngân hàng câu hỏi</span></a>{% endif %}<a href="/teacher/word-template">⬇ <span class="txt">Tải mẫu Word</span></a><div class="menu-section">Quản lý</div>{% if has_perm("classes") %}<a href="/teacher/classes">🏫 <span class="txt">Lớp học</span></a>{% endif %}{% if has_perm("students") %}<a href="/teacher/students">👥 <span class="txt">Học sinh</span></a>{% endif %}{% if me.role=='admin' %}<a href="/admin/teachers">👨‍🏫 <span class="txt">Giáo viên</span></a><a href="/admin/change-password">🔐 <span class="txt">Đổi mật khẩu Admin</span></a>{% endif %}<div class="menu-section">Khác</div><a href="/teacher/analytics">📊 <span class="txt">Thống kê</span></a><a href="/teacher/settings">⚙️ <span class="txt">Cài đặt</span></a>{% else %}<a href="/student">🏠 <span class="txt">Trang học tập</span></a>{% endif %}<a href="/logout">↪ <span class="txt">Đăng xuất</span></a></aside><main class="main"><div class="top"><b>{% block heading %}Hệ thống học tập{% endblock %}</b><div class="profile">{% if me.avatar %}<img class="avatar" src="/media/{{me.avatar}}">{% else %}<div class="avatar">{{me.full_name[:1]}}</div>{% endif %}<span>{{me.full_name}}</span></div></div><div class="content">{% with msgs=get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div class="flash {{cat}}">{{msg}}</div>{% endfor %}{% endwith %}{% block content %}{% endblock %}</div></main></div>{% else %}{% block public %}{% endblock %}{% endif %}</body></html>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']]},svg:{fontCache:'global'}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script></head><body>{% if me %}<div class="layout"><aside class="side">
+  <div class="sidebar-inner">
+    <div class="brand">
+      <div class="brand-logo">🎓</div>
+      <div class="brand-copy">
+        <span class="brand-title">{{site_setting.site_title if site_setting else 'Lớp Toán Online Cô Chuyền'}}</span>
+        <span class="brand-sub">Kiến thức hôm nay · Vững bước tương lai</span>
+      </div>
+    </div>
+
+    {% if me.role in ['teacher','admin'] %}
+      <div class="menu-section">Dùng thường xuyên</div>
+
+      <a class="nav-link {% if request.path == '/teacher' %}active{% endif %}" href="/teacher">
+        <span class="nav-ico">🏠</span><span class="txt">Tổng quan</span><span class="nav-arrow">›</span>
+      </a>
+
+      {% if has_perm("lessons") %}
+      <a class="nav-link {% if request.path.startswith('/teacher/lessons') %}active{% endif %}" href="/teacher/lessons">
+        <span class="nav-ico">📚</span><span class="txt">Bài giảng</span><span class="nav-arrow">›</span>
+      </a>
+      <a class="nav-link {% if request.path.startswith('/teacher/elearning') %}active{% endif %}" href="/teacher/elearning">
+        <span class="nav-ico">🎓</span><span class="txt">eLearning</span><span class="nav-arrow">›</span>
+      </a>
+      {% endif %}
+
+      {% if has_perm("assignments") %}
+      <a class="nav-link {% if request.path.startswith('/teacher/assignment') or request.path.startswith('/teacher/assignments') %}active{% endif %}" href="/teacher/assignments/new">
+        <span class="nav-ico">📝</span><span class="txt">Bài kiểm tra</span><span class="nav-arrow">›</span>
+      </a>
+      <a class="nav-link {% if request.path.startswith('/teacher/exam-archive') %}active{% endif %}" href="/teacher/exam-archive">
+        <span class="nav-ico">📁</span><span class="txt">Kho đề lưu trữ</span><span class="nav-arrow">›</span>
+      </a>
+      {% endif %}
+
+      {% if has_perm("question_bank") %}
+      <a class="nav-link {% if request.path.startswith('/teacher/question-bank') %}active{% endif %}" href="/teacher/question-bank">
+        <span class="nav-ico">🧠</span><span class="txt">Ngân hàng câu hỏi</span><span class="nav-arrow">›</span>
+      </a>
+      {% endif %}
+
+      <a class="nav-link {% if request.path.startswith('/teacher/word-template') %}active{% endif %}" href="/teacher/word-template">
+        <span class="nav-ico">📄</span><span class="txt">Tải mẫu Word</span><span class="nav-arrow">›</span>
+      </a>
+
+      <div class="menu-section">Quản lý</div>
+
+      {% if has_perm("classes") %}
+      <a class="nav-link {% if request.path.startswith('/teacher/classes') %}active{% endif %}" href="/teacher/classes">
+        <span class="nav-ico">🏫</span><span class="txt">Lớp học</span><span class="nav-arrow">›</span>
+      </a>
+      {% endif %}
+
+      {% if has_perm("students") %}
+      <a class="nav-link {% if request.path.startswith('/teacher/students') %}active{% endif %}" href="/teacher/students">
+        <span class="nav-ico">👥</span><span class="txt">Học sinh</span><span class="nav-arrow">›</span>
+      </a>
+      {% endif %}
+
+      {% if me.role=='admin' %}
+      <a class="nav-link {% if request.path.startswith('/admin/teachers') %}active{% endif %}" href="/admin/teachers">
+        <span class="nav-ico">👩‍🏫</span><span class="txt">Giáo viên</span><span class="nav-arrow">›</span>
+      </a>
+      <a class="nav-link {% if request.path.startswith('/admin/change-password') %}active{% endif %}" href="/admin/change-password">
+        <span class="nav-ico">🔐</span><span class="txt">Đổi mật khẩu Admin</span><span class="nav-arrow">›</span>
+      </a>
+      {% endif %}
+
+      <div class="menu-section">Khác</div>
+
+      <a class="nav-link {% if request.path.startswith('/teacher/analytics') %}active{% endif %}" href="/teacher/analytics">
+        <span class="nav-ico">📊</span><span class="txt">Thống kê</span><span class="nav-arrow">›</span>
+      </a>
+      <a class="nav-link {% if request.path.startswith('/teacher/settings') %}active{% endif %}" href="/teacher/settings">
+        <span class="nav-ico">⚙️</span><span class="txt">Cài đặt</span><span class="nav-arrow">›</span>
+      </a>
+
+    {% else %}
+      <div class="menu-section">Học tập</div>
+      <a class="nav-link {% if request.path.startswith('/student') %}active{% endif %}" href="/student">
+        <span class="nav-ico">🏠</span><span class="txt">Trang học tập</span><span class="nav-arrow">›</span>
+      </a>
+    {% endif %}
+
+    <a class="nav-link" href="/logout">
+      <span class="nav-ico">🚪</span><span class="txt">Đăng xuất</span><span class="nav-arrow">›</span>
+    </a>
+
+    <div class="side-spacer"></div>
+    <div class="sidebar-quote">
+      <div class="quote-text">“Học toán không khó khi có người đồng hành!”</div>
+      <div class="quote-foot">💙 CÙNG NHAU TIẾN BỘ MỖI NGÀY</div>
+    </div>
+  </div>
+</aside><main class="main"><div class="top"><b>{% block heading %}Hệ thống học tập{% endblock %}</b><div class="profile">{% if me.avatar %}<img class="avatar" src="/media/{{me.avatar}}">{% else %}<div class="avatar">{{me.full_name[:1]}}</div>{% endif %}<span>{{me.full_name}}</span></div></div><div class="content">{% with msgs=get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div class="flash {{cat}}">{{msg}}</div>{% endfor %}{% endwith %}{% block content %}{% endblock %}</div></main></div>{% else %}{% block public %}{% endblock %}{% endif %}</body></html>
