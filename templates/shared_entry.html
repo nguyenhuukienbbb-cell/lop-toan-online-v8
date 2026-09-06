@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block public %}
+<style>
+.share-public{min-height:100vh;background:linear-gradient(135deg,#eff6ff,#f8fbff);padding:28px 14px;display:flex;justify-content:center;align-items:center}
+.share-card{width:min(720px,96vw);background:white;border:1px solid #dbeafe;border-radius:22px;padding:28px;box-shadow:0 22px 60px rgba(30,64,175,.13)}
+.share-logo{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#2588ff,#1857d8);display:grid;place-items:center;color:#fff;font-size:31px;margin:0 auto 12px}
+.share-title{text-align:center;color:#123d83;margin:0}
+.share-desc{text-align:center;color:#64748b}
+.info-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:14px 0}
+.share-card input{height:50px}
+.start-btn{width:100%;height:52px;margin-top:14px;font-size:16px}
+</style>
+<div class="share-public">
+  <div class="share-card">
+    {% with msgs=get_flashed_messages(with_categories=true) %}
+      {% for cat,msg in msgs %}<div class="flash {{cat}}">{{msg}}</div>{% endfor %}
+    {% endwith %}
+    <div class="share-logo">📝</div>
+    <h1 class="share-title">{{assignment.title}}</h1>
+    <p class="share-desc">{{assignment.description}}</p>
+    <div class="info-row">
+      <span class="badge">⏱ {{assignment.duration_minutes}} phút</span>
+      <span class="badge">📚 {{assignment.subject}}</span>
+      <span class="badge">📊 Thang điểm {{assignment.score_scale}}</span>
+    </div>
+
+    <form method="post">
+      {% if logged_student %}
+        <div class="flash ok">Đang làm bài với tài khoản: <b>{{logged_student.full_name}}</b></div>
+      {% else %}
+        <div class="grid2">
+          <div><label>Họ và tên học sinh</label><input name="guest_name" required placeholder="Nguyễn Văn A"></div>
+          <div><label>Lớp</label><input name="guest_class" placeholder="Ví dụ: 6A1"></div>
+        </div>
+      {% endif %}
+
+      {% if share.password_hash %}
+        <label>Mật khẩu bài</label>
+        <input type="password" name="share_password" required placeholder="Nhập mật khẩu giáo viên đã cung cấp">
+      {% endif %}
+
+      <div class="flash" style="background:#f8fafc">
+        Sau khi bấm <b>Bắt đầu làm bài</b>, đồng hồ sẽ bắt đầu tính thời gian. Khi hoàn thành hãy bấm <b>Nộp bài</b>.
+      </div>
+      <button class="green start-btn">🚀 Bắt đầu làm bài</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

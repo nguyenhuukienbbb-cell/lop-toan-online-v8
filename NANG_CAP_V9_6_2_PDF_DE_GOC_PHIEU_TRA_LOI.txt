@@ -1,0 +1,42 @@
+V9.6.2 - GIAO BÀI BẰNG LINK VỚI PDF ĐỀ GỐC + PHIẾU TRẢ LỜI
+
+Mục tiêu:
+Giảm tối đa lỗi công thức Toán, hình học, MathType và Shapes trong Word.
+
+Cách hoạt động:
+1. Giáo viên xuất đề từ Microsoft Word thành PDF trên máy giáo viên.
+2. Trong Soạn đề -> PDF đề gốc + Phiếu trả lời -> upload PDF.
+3. Tạo nhanh Phiếu trả lời:
+   - số câu trắc nghiệm
+   - số câu trả lời ngắn
+   - số câu tự luận
+4. Nhập đáp án đúng và điểm.
+5. Bật Link + QR như V9.6.1.
+6. Học sinh mở link:
+   - bên trái: PDF đề gốc nguyên bản
+   - bên phải: Phiếu trả lời
+7. Học sinh bấm NỘP BÀI.
+8. Trắc nghiệm/trả lời ngắn tự chấm; tự luận giáo viên chấm.
+
+VÌ SAO ÍT LỖI CÔNG THỨC/HÌNH HỌC:
+- App không parse lại công thức trong PDF.
+- App không chuyển OMML/MathType sang HTML trong chế độ này.
+- App không bóc hình học/Shapes.
+- Trình duyệt chỉ hiển thị nguyên PDF mà giáo viên đã xuất.
+- Vì vậy hình ảnh/công thức trong PDF được giữ đúng như file PDF gốc.
+
+LƯU Ý QUAN TRỌNG:
+- Để ổn định nhất, hãy xuất PDF trực tiếp bằng Microsoft Word trên máy Windows.
+- Không nên dùng Word -> LibreOffice -> PDF cho đề có MathType/Shapes phức tạp.
+- Nếu bản PDF giáo viên upload đã đúng thì hệ thống không thay đổi nội dung PDF.
+
+Tính năng:
+- PDF được lưu trên Supabase Storage.
+- Hiển thị PDF inline.
+- Desktop: PDF trái + phiếu trả lời phải.
+- Mobile: PDF trên + phiếu trả lời dưới.
+- Đồng hồ đếm ngược.
+- Link + QR.
+- Mật khẩu / yêu cầu đăng nhập / hạn link.
+- Không hiện điểm cho học sinh sau khi nộp.
+- Giáo viên xem/chấm bài cạnh PDF gốc.

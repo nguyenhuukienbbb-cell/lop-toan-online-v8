@@ -12,7 +12,7 @@ from authlib.integrations.flask_client import OAuth
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from io import BytesIO
-import os, re, random, uuid, json, hashlib, subprocess, tempfile, shutil, platform, unicodedata, time, mimetypes
+import os, re, random, uuid, json, hashlib, subprocess, tempfile, shutil, platform, unicodedata, time, mimetypes, secrets
 from urllib.parse import quote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
@@ -20,6 +20,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 import fitz
 from PIL import Image, ImageDraw
+import qrcode
+from qrcode.image.svg import SvgPathImage
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
@@ -253,6 +255,90 @@ class Submission(db.Model):
     def total_score(self):
         return round((self.auto_score or 0) + (self.manual_score or 0), 2)
 
+
+class AssignmentShare(db.Model):
+    """Cấu hình chia sẻ bài kiểm tra bằng link/QR."""
+    id = db.Column(db.Integer, primary_key=True)
+    assignment_id = db.Column(db.Integer, db.ForeignKey('assignment.id'), nullable=False, unique=True)
+    token = db.Column(db.String(80), nullable=False, unique=True)
+    enabled = db.Column(db.Boolean, default=False)
+    require_login = db.Column(db.Boolean, default=False)
+    password_hash = db.Column(db.String(255), default='')
+    expires_at = db.Column(db.DateTime, nullable=True)
+    one_submission = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class SharedSubmission(db.Model):
+    """Lượt làm qua link chia sẻ; độc lập với Submission chính để không phá dữ liệu cũ."""
+    id = db.Column(db.Integer, primary_key=True)
+    share_id = db.Column(db.Integer, db.ForeignKey('assignment_share.id'), nullable=False)
+    assignment_id = db.Column(db.Integer, db.ForeignKey('assignment.id'), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    guest_name = db.Column(db.String(160), nullable=False)
+    guest_class = db.Column(db.String(100), default='')
+    access_key = db.Column(db.String(100), nullable=False, unique=True)
+    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    submitted = db.Column(db.Boolean, default=False)
+    auto_score = db.Column(db.Float, default=0.0)
+    manual_score = db.Column(db.Float, default=0.0)
+    max_score = db.Column(db.Float, default=10.0)
+    correct_count = db.Column(db.Integer, default=0)
+    objective_count = db.Column(db.Integer, default=0)
+
+    @property
+    def total_score(self):
+        return round((self.auto_score or 0) + (self.manual_score or 0), 2)
+
+class SharedAnswer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    shared_submission_id = db.Column(db.Integer, db.ForeignKey('shared_submission.id'), nullable=False)
+    question_id = db.Column(db.Integer, db.ForeignKey('bank_question.id'), nullable=False)
+    answer_text = db.Column(db.Text, default='')
+    auto_score = db.Column(db.Float, default=0.0)
+    manual_score = db.Column(db.Float, default=0.0)
+    teacher_note = db.Column(db.Text, default='')
+
+
+class AssignmentPaper(db.Model):
+    """Đề gốc PDF dùng cho chế độ Link + Phiếu trả lời."""
+    id = db.Column(db.Integer, primary_key=True)
+    assignment_id = db.Column(db.Integer, db.ForeignKey('assignment.id'), nullable=False, unique=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    enabled = db.Column(db.Boolean, default=False)
+    file_name = db.Column(db.String(255), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    sha256 = db.Column(db.String(64), nullable=False)
+    file_size = db.Column(db.Integer, default=0)
+    page_count = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class PaperAnswerItem(db.Model):
+    """Một dòng trong phiếu trả lời đi kèm đề PDF."""
+    id = db.Column(db.Integer, primary_key=True)
+    assignment_id = db.Column(db.Integer, db.ForeignKey('assignment.id'), nullable=False)
+    order_no = db.Column(db.Integer, nullable=False)
+    label = db.Column(db.String(80), default='')
+    qtype = db.Column(db.String(20), nullable=False)  # mcq / short / essay
+    correct_answer = db.Column(db.Text, default='')
+    points = db.Column(db.Float, default=0.0)
+    __table_args__ = (
+        db.UniqueConstraint('assignment_id', 'order_no', name='uq_paper_answer_item_order'),
+    )
+
+class SharedPaperAnswer(db.Model):
+    """Câu trả lời học sinh cho phiếu trả lời của đề PDF."""
+    id = db.Column(db.Integer, primary_key=True)
+    shared_submission_id = db.Column(db.Integer, db.ForeignKey('shared_submission.id'), nullable=False)
+    item_id = db.Column(db.Integer, db.ForeignKey('paper_answer_item.id'), nullable=False)
+    answer_text = db.Column(db.Text, default='')
+    auto_score = db.Column(db.Float, default=0.0)
+    manual_score = db.Column(db.Float, default=0.0)
+    teacher_note = db.Column(db.Text, default='')
+    __table_args__ = (
+        db.UniqueConstraint('shared_submission_id', 'item_id', name='uq_shared_paper_answer'),
+    )
+
 class Answer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     submission_id = db.Column(db.Integer, db.ForeignKey('submission.id'), nullable=False)
@@ -261,6 +347,95 @@ class Answer(db.Model):
     auto_score = db.Column(db.Float, default=0.0)
     manual_score = db.Column(db.Float, default=0.0)
     teacher_note = db.Column(db.Text, default='')
+
+
+
+def get_assignment_paper(assignment_id):
+    return AssignmentPaper.query.filter_by(assignment_id=assignment_id).first()
+
+def get_paper_items(assignment_id):
+    return PaperAnswerItem.query.filter_by(
+        assignment_id=assignment_id
+    ).order_by(PaperAnswerItem.order_no).all()
+
+def paper_mode_ready(assignment_id):
+    paper = get_assignment_paper(assignment_id)
+    return bool(paper and paper.enabled and paper.file_path)
+
+def pdf_page_count(raw):
+    try:
+        doc = fitz.open(stream=raw, filetype='pdf')
+        n = len(doc)
+        doc.close()
+        return n
+    except Exception:
+        return 0
+
+def normalize_mcq_key(v):
+    return (v or '').strip().upper()[:1]
+
+def rebuild_paper_item_points(assignment_id, score_scale):
+    """Chia đều điểm mặc định cho toàn bộ dòng phiếu."""
+    items = get_paper_items(assignment_id)
+    if not items:
+        return
+    p = float(score_scale or 10.0) / len(items)
+    for x in items:
+        if not x.points or x.points <= 0:
+            x.points = p
+
+def get_assignment_share(assignment_id, create=False):
+    row = AssignmentShare.query.filter_by(assignment_id=assignment_id).first()
+    if not row and create:
+        row = AssignmentShare(
+            assignment_id=assignment_id,
+            token=secrets.token_urlsafe(18),
+            enabled=False,
+            require_login=False,
+            one_submission=True,
+        )
+        db.session.add(row)
+        db.session.flush()
+    return row
+
+def shared_exam_status(share, assignment):
+    if not share or not share.enabled:
+        return False, 'Link chia sẻ đang tắt.'
+    now = local_now()
+    if share.expires_at and now > share.expires_at:
+        return False, 'Link chia sẻ đã hết hạn.'
+    if assignment.starts_at and now < assignment.starts_at:
+        return False, 'Bài chưa đến giờ mở.'
+    if assignment.due_at and now > assignment.due_at:
+        return False, 'Bài đã hết hạn nộp.'
+    return True, ''
+
+def shared_submission_review(sub, assignment):
+    links = AssignmentQuestion.query.filter_by(
+        assignment_id=assignment.id
+    ).order_by(AssignmentQuestion.order_no).all()
+    qs = [db.session.get(BankQuestion, x.question_id) for x in links]
+    qs = [q for q in qs if q]
+    answers = {
+        a.question_id: a for a in SharedAnswer.query.filter_by(
+            shared_submission_id=sub.id
+        ).all()
+    }
+    rows = []
+    for q in qs:
+        ans = answers.get(q.id)
+        selected_text = ''
+        if ans and q.qtype == 'mcq':
+            selected_text = {
+                'A': q.option_a, 'B': q.option_b, 'C': q.option_c, 'D': q.option_d
+            }.get((ans.answer_text or '').upper(), '')
+        rows.append({
+            'question': q,
+            'answer': ans,
+            'selected_text': selected_text,
+            'is_objective': q.qtype in ('mcq', 'short'),
+        })
+    return rows
 
 def me():
     uid = session.get('user_id')
@@ -1670,7 +1845,11 @@ def login():
         u = User.query.filter_by(username=request.form['username'].strip()).first()
         if not u or not check_password_hash(u.password_hash, request.form['password']):
             flash('Sai tài khoản hoặc mật khẩu.', 'error'); return render_template('login.html')
-        session['user_id'] = u.id; return redirect(url_for('index'))
+        session['user_id'] = u.id
+        next_url = session.pop('after_login', '')
+        if next_url and next_url.startswith('/'):
+            return redirect(next_url)
+        return redirect(url_for('index'))
     return render_template('login.html')
 
 @app.route('/login/google')
@@ -1933,6 +2112,35 @@ def delete_assignment(assignment_id):
         deleted_submissions = Submission.query.filter_by(
             assignment_id=a.id
         ).delete(synchronize_session=False)
+
+        # Xóa dữ liệu bài làm qua link chia sẻ.
+        shared_submission_ids = [
+            row[0] for row in db.session.query(SharedSubmission.id)
+            .filter(SharedSubmission.assignment_id == a.id)
+            .all()
+        ]
+        if shared_submission_ids:
+            SharedAnswer.query.filter(
+                SharedAnswer.shared_submission_id.in_(shared_submission_ids)
+            ).delete(synchronize_session=False)
+            SharedPaperAnswer.query.filter(
+                SharedPaperAnswer.shared_submission_id.in_(shared_submission_ids)
+            ).delete(synchronize_session=False)
+        SharedSubmission.query.filter_by(
+            assignment_id=a.id
+        ).delete(synchronize_session=False)
+        AssignmentShare.query.filter_by(
+            assignment_id=a.id
+        ).delete(synchronize_session=False)
+
+        # Dọn đề PDF + phiếu trả lời.
+        paper_to_delete = get_assignment_paper(a.id)
+        paper_path_to_delete = paper_to_delete.file_path if paper_to_delete else ''
+        PaperAnswerItem.query.filter_by(
+            assignment_id=a.id
+        ).delete(synchronize_session=False)
+        if paper_to_delete:
+            db.session.delete(paper_to_delete)
 
         # Xóa các liên kết đề - câu hỏi/lớp; KHÔNG xóa BankQuestion.
         AssignmentQuestion.query.filter_by(
@@ -3279,10 +3487,518 @@ def edit_assignment(assignment_id):
     if bank_topic: bq = bq.filter(BankQuestion.topic.ilike(f'%{bank_topic}%'))
     if bank_search: bq = bq.filter(BankQuestion.content.ilike(f'%{bank_search}%'))
     bank = bq.order_by(BankQuestion.id.desc()).limit(40).all()
+    share_link = get_assignment_share(a.id, create=False)
+    share_url = url_for('shared_assignment_entry', token=share_link.token, _external=True) if share_link else ''
+    paper = get_assignment_paper(a.id)
+    paper_items = get_paper_items(a.id)
     return render_template('edit_assignment.html', assignment=a, selected=selected, bank=bank,
                            classes=accessible_classes(), selected_class_ids=assignment_class_ids(a),
                            score_map=question_score_map(a, selected), bank_subject=bank_subject, bank_grade=bank_grade, bank_qtype=bank_qtype,
-                           bank_difficulty=bank_difficulty, bank_domain=bank_domain, bank_topic=bank_topic, bank_search=bank_search)
+                           bank_difficulty=bank_difficulty, bank_domain=bank_domain, bank_topic=bank_topic, bank_search=bank_search,
+                           share_link=share_link, share_url=share_url,
+                           paper=paper, paper_items=paper_items)
+
+
+
+@app.route('/teacher/assignment/<int:assignment_id>/paper/upload', methods=['POST'])
+def assignment_paper_upload(assignment_id):
+    if not require_perm('assignments') or not teacher_only():
+        return redirect(url_for('login'))
+    a = db.session.get(Assignment, assignment_id)
+    if not a or a.created_by != me().id:
+        return 'Không có quyền', 403
+
+    upload = request.files.get('paper_pdf')
+    if not upload or not upload.filename:
+        flash('Hãy chọn file PDF đề gốc.', 'error')
+        return redirect(url_for('edit_assignment', assignment_id=a.id))
+
+    original_name = secure_filename(upload.filename) or 'de-goc.pdf'
+    if os.path.splitext(original_name)[1].lower() != '.pdf':
+        flash('Để giữ công thức và hình học ổn định nhất, chế độ này chỉ nhận PDF.', 'error')
+        return redirect(url_for('edit_assignment', assignment_id=a.id))
+
+    raw = upload.read()
+    if not raw:
+        flash('File PDF rỗng hoặc không đọc được.', 'error')
+        return redirect(url_for('edit_assignment', assignment_id=a.id))
+
+    # Kiểm tra PDF thật, tránh file giả đuôi.
+    pages = pdf_page_count(raw)
+    if pages <= 0:
+        flash('File không phải PDF hợp lệ hoặc máy chủ không đọc được PDF.', 'error')
+        return redirect(url_for('edit_assignment', assignment_id=a.id))
+
+    digest = hashlib.sha256(raw).hexdigest()
+    existing = get_assignment_paper(a.id)
+    old_path = existing.file_path if existing else ''
+
+    try:
+        key = f'assignment-paper/{me().id}/{a.id}/{digest[:18]}.pdf'
+        stored = save_lesson_bytes(raw, key, 'application/pdf')
+
+        if existing:
+            existing.file_name = original_name
+            existing.file_path = stored
+            existing.sha256 = digest
+            existing.file_size = len(raw)
+            existing.page_count = pages
+            existing.enabled = True
+        else:
+            existing = AssignmentPaper(
+                assignment_id=a.id,
+                owner_id=me().id,
+                enabled=True,
+                file_name=original_name,
+                file_path=stored,
+                sha256=digest,
+                file_size=len(raw),
+                page_count=pages,
+            )
+            db.session.add(existing)
+        db.session.commit()
+
+        if old_path and old_path != stored:
+            delete_lesson_storage(old_path)
+
+        flash(f'Đã gắn PDF đề gốc ({pages} trang). Công thức và hình học sẽ hiển thị trực tiếp từ PDF.', 'ok')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.exception('ASSIGNMENT PAPER PDF UPLOAD FAILED')
+        flash('Không thể lưu PDF đề gốc: ' + str(e)[:220], 'error')
+
+    return redirect(url_for('edit_assignment', assignment_id=a.id))
+
+
+@app.route('/teacher/assignment/<int:assignment_id>/paper/settings', methods=['POST'])
+def assignment_paper_settings(assignment_id):
+    if not require_perm('assignments') or not teacher_only():
+        return redirect(url_for('login'))
+    a = db.session.get(Assignment, assignment_id)
+    if not a or a.created_by != me().id:
+        return 'Không có quyền', 403
+    paper = get_assignment_paper(a.id)
+    if not paper:
+        flash('Hãy upload PDF đề gốc trước.', 'error')
+        return redirect(url_for('edit_assignment', assignment_id=a.id))
+    paper.enabled = bool(request.form.get('enabled'))
+    db.session.commit()
+    flash('Đã cập nhật chế độ PDF đề gốc + Phiếu trả lời.', 'ok')
+    return redirect(url_for('edit_assignment', assignment_id=a.id))
+
+
+@app.route('/teacher/assignment/<int:assignment_id>/paper/delete', methods=['POST'])
+def assignment_paper_delete(assignment_id):
+    if not require_perm('assignments') or not teacher_only():
+        return redirect(url_for('login'))
+    a = db.session.get(Assignment, assignment_id)
+    if not a or a.created_by != me().id:
+        return 'Không có quyền', 403
+    paper = get_assignment_paper(a.id)
+    if paper:
+        old_path = paper.file_path
+        db.session.delete(paper)
+        db.session.commit()
+        delete_lesson_storage(old_path)
+        flash('Đã gỡ PDF đề gốc. Phiếu trả lời vẫn được giữ lại.', 'ok')
+    return redirect(url_for('edit_assignment', assignment_id=a.id))
+
+
+
+@app.route('/teacher/assignment/<int:assignment_id>/paper/answer-sheet/from-bank', methods=['POST'])
+def paper_answer_sheet_from_bank(assignment_id):
+    """Tạo/đồng bộ phiếu trả lời PDF từ chính các câu đã chọn trong bài kiểm tra."""
+    if not require_perm('assignments') or not teacher_only():
+        return redirect(url_for('login'))
+
+    a = db.session.get(Assignment, assignment_id)
+    if not a or a.created_by != me().id:
+        return 'Không có quyền', 403
+
+    # Không thay đổi cấu trúc phiếu khi đã có bài nộp qua link.
+    submitted_count = SharedSubmission.query.filter_by(
+        assignment_id=a.id, submitted=True
+    ).count()
+    if submitted_count:
+        flash(
+            'Bài đã có học sinh nộp qua link nên không thể đồng bộ lại toàn bộ phiếu từ Ngân hàng. '
+            'Bạn vẫn có thể chỉnh đáp án/điểm trên phiếu hiện tại.',
+            'error'
+        )
+        return redirect(url_for('edit_assignment', assignment_id=a.id) + '#paper-answer-sheet')
+
+    # Lấy đúng thứ tự câu trong đề.
+    links = (
+        AssignmentQuestion.query
+        .filter_by(assignment_id=a.id)
+        .order_by(AssignmentQuestion.order_no, AssignmentQuestion.id)
+        .all()
+    )
+    if not links:
+        flash(
+            'Bài kiểm tra chưa có câu hỏi nào. Hãy chọn câu từ Ngân hàng câu hỏi trước.',
+            'error'
+        )
+        return redirect(url_for('edit_assignment', assignment_id=a.id) + '#paper-answer-sheet')
+
+    question_ids = [x.question_id for x in links]
+    bank_rows = BankQuestion.query.filter(BankQuestion.id.in_(question_ids)).all()
+    bank_by_id = {q.id: q for q in bank_rows}
+
+    ordered_questions = [bank_by_id.get(x.question_id) for x in links]
+    ordered_questions = [q for q in ordered_questions if q]
+
+    if not ordered_questions:
+        flash('Không tìm thấy dữ liệu câu hỏi trong Ngân hàng.', 'error')
+        return redirect(url_for('edit_assignment', assignment_id=a.id) + '#paper-answer-sheet')
+
+    # Điểm lấy theo chính cơ chế chấm của bài kiểm tra hiện tại.
+    score_map = question_score_map(a, ordered_questions)
+
+    try:
+        PaperAnswerItem.query.filter_by(
+            assignment_id=a.id
+        ).delete(synchronize_session=False)
+
+        counts = {'mcq': 0, 'short': 0, 'essay': 0}
+
+        for order_no, q in enumerate(ordered_questions, start=1):
+            qtype = (q.qtype or '').strip().lower()
+            if qtype not in ('mcq', 'short', 'essay'):
+                # Dạng lạ/không xác định -> để giáo viên chấm tay an toàn.
+                qtype = 'essay'
+
+            correct = (q.correct_answer or '').strip()
+            if qtype == 'mcq':
+                correct = normalize_mcq_key(correct)
+                if correct not in ('A', 'B', 'C', 'D'):
+                    correct = ''
+            elif qtype == 'essay':
+                correct = ''
+
+            counts[qtype] += 1
+
+            db.session.add(PaperAnswerItem(
+                assignment_id=a.id,
+                order_no=order_no,
+                label=f'Câu {order_no}',
+                qtype=qtype,
+                correct_answer=correct,
+                points=float(score_map.get(q.id, 0) or 0),
+            ))
+
+        db.session.commit()
+
+        flash(
+            f'Đã tạo phiếu trả lời từ {len(ordered_questions)} câu đã chọn trong Ngân hàng: '
+            f'{counts["mcq"]} trắc nghiệm, {counts["short"]} trả lời ngắn, '
+            f'{counts["essay"]} tự luận. Đáp án và điểm đã được lấy tự động.',
+            'ok'
+        )
+    except Exception as e:
+        db.session.rollback()
+        app.logger.exception('PAPER ANSWER SHEET FROM BANK FAILED')
+        flash('Không thể tạo phiếu từ Ngân hàng: ' + str(e)[:220], 'error')
+
+    return redirect(url_for('edit_assignment', assignment_id=a.id) + '#paper-answer-sheet')
+
+
+@app.route('/teacher/assignment/<int:assignment_id>/paper/answer-sheet/build', methods=['POST'])
+def paper_answer_sheet_build(assignment_id):
+    if not require_perm('assignments') or not teacher_only():
+        return redirect(url_for('login'))
+    a = db.session.get(Assignment, assignment_id)
+    if not a or a.created_by != me().id:
+        return 'Không có quyền', 403
+
+    try:
+        mcq = max(0, min(200, int(request.form.get('mcq_count', 0) or 0)))
+        short = max(0, min(200, int(request.form.get('short_count', 0) or 0)))
+        essay = max(0, min(100, int(request.form.get('essay_count', 0) or 0)))
+    except Exception:
+        flash('Số lượng câu không hợp lệ.', 'error')
+        return redirect(url_for('edit_assignment', assignment_id=a.id))
+
+    total = mcq + short + essay
+    if total <= 0:
+        flash('Phiếu trả lời phải có ít nhất 1 câu.', 'error')
+        return redirect(url_for('edit_assignment', assignment_id=a.id))
+    if total > 300:
+        flash('Tổng số câu trên phiếu tối đa là 300.', 'error')
+        return redirect(url_for('edit_assignment', assignment_id=a.id))
+
+    # Không cho rebuild khi đã có bài nộp qua link để tránh lệch dữ liệu.
+    submitted_count = SharedSubmission.query.filter_by(
+        assignment_id=a.id, submitted=True
+    ).count()
+    if submitted_count:
+        flash('Bài đã có học sinh nộp qua link nên không thể tạo lại toàn bộ phiếu. Hãy chỉnh đáp án/điểm trên phiếu hiện tại.', 'error')
+        return redirect(url_for('edit_assignment', assignment_id=a.id))
+
+    PaperAnswerItem.query.filter_by(assignment_id=a.id).delete(synchronize_session=False)
+
+    order = 0
+    point_each = float(a.score_scale or 10.0) / total
+    for _ in range(mcq):
+        order += 1
+        db.session.add(PaperAnswerItem(
+            assignment_id=a.id, order_no=order,
+            label=f'Câu {order}', qtype='mcq',
+            correct_answer='', points=point_each
+        ))
+    for _ in range(short):
+        order += 1
+        db.session.add(PaperAnswerItem(
+            assignment_id=a.id, order_no=order,
+            label=f'Câu {order}', qtype='short',
+            correct_answer='', points=point_each
+        ))
+    for _ in range(essay):
+        order += 1
+        db.session.add(PaperAnswerItem(
+            assignment_id=a.id, order_no=order,
+            label=f'Câu {order}', qtype='essay',
+            correct_answer='', points=point_each
+        ))
+    db.session.commit()
+    flash(f'Đã tạo phiếu trả lời {total} câu. Hãy nhập đáp án đúng và chỉnh điểm nếu cần.', 'ok')
+    return redirect(url_for('edit_assignment', assignment_id=a.id) + '#paper-answer-sheet')
+
+
+@app.route('/teacher/assignment/<int:assignment_id>/paper/answer-sheet/save', methods=['POST'])
+def paper_answer_sheet_save(assignment_id):
+    if not require_perm('assignments') or not teacher_only():
+        return redirect(url_for('login'))
+    a = db.session.get(Assignment, assignment_id)
+    if not a or a.created_by != me().id:
+        return 'Không có quyền', 403
+
+    items = get_paper_items(a.id)
+    if not items:
+        flash('Chưa có phiếu trả lời để lưu.', 'error')
+        return redirect(url_for('edit_assignment', assignment_id=a.id))
+
+    total_points = 0.0
+    for item in items:
+        item.label = (request.form.get(f'label_{item.id}') or f'Câu {item.order_no}').strip()[:80]
+        qtype = (request.form.get(f'qtype_{item.id}') or item.qtype).strip()
+        if qtype not in ('mcq', 'short', 'essay'):
+            qtype = item.qtype
+        item.qtype = qtype
+
+        correct = (request.form.get(f'correct_{item.id}') or '').strip()
+        if qtype == 'mcq':
+            correct = normalize_mcq_key(correct)
+            if correct and correct not in ('A', 'B', 'C', 'D'):
+                correct = ''
+        item.correct_answer = correct
+
+        try:
+            pts = max(0.0, float(request.form.get(f'points_{item.id}', item.points) or 0))
+        except Exception:
+            pts = item.points or 0.0
+        item.points = pts
+        total_points += pts
+
+    db.session.commit()
+    flash(f'Đã lưu phiếu trả lời. Tổng điểm cấu hình: {round(total_points,2)}.', 'ok')
+    return redirect(url_for('edit_assignment', assignment_id=a.id) + '#paper-answer-sheet')
+
+
+@app.route('/teacher/assignment/<int:assignment_id>/paper/file')
+def teacher_assignment_paper_file(assignment_id):
+    if not require_perm('assignments') or not teacher_only():
+        return redirect(url_for('login'))
+    a = db.session.get(Assignment, assignment_id)
+    if not a or a.created_by != me().id:
+        return 'Không có quyền', 403
+    paper = get_assignment_paper(a.id)
+    if not paper:
+        return 'Chưa có PDF đề gốc', 404
+    raw = read_lesson_bytes(paper.file_path)
+    if raw is None:
+        return 'Không tìm thấy PDF trên kho lưu trữ', 404
+    return send_file(
+        BytesIO(raw), mimetype='application/pdf',
+        as_attachment=False, download_name=paper.file_name
+    )
+
+
+@app.route('/teacher/assignment/<int:assignment_id>/share', methods=['POST'])
+def assignment_share_settings(assignment_id):
+    if not require_perm('assignments') or not teacher_only():
+        return redirect(url_for('login'))
+
+    a = db.session.get(Assignment, assignment_id)
+    if not a or a.created_by != me().id:
+        return 'Không có quyền', 403
+
+    share = get_assignment_share(a.id, create=True)
+    share.enabled = bool(request.form.get('enabled'))
+    share.require_login = bool(request.form.get('require_login'))
+    share.one_submission = bool(request.form.get('one_submission'))
+    share.expires_at = parse_dt(request.form.get('expires_at'))
+
+    new_password = (request.form.get('share_password') or '').strip()
+    if request.form.get('clear_password'):
+        share.password_hash = ''
+    elif new_password:
+        share.password_hash = generate_password_hash(new_password)
+
+    db.session.commit()
+    flash('Đã lưu cấu hình chia sẻ bài bằng link.', 'ok')
+    return redirect(url_for('edit_assignment', assignment_id=a.id))
+
+
+@app.route('/teacher/assignment/<int:assignment_id>/share/regenerate', methods=['POST'])
+def assignment_share_regenerate(assignment_id):
+    if not require_perm('assignments') or not teacher_only():
+        return redirect(url_for('login'))
+    a = db.session.get(Assignment, assignment_id)
+    if not a or a.created_by != me().id:
+        return 'Không có quyền', 403
+    share = get_assignment_share(a.id, create=True)
+    share.token = secrets.token_urlsafe(18)
+    db.session.commit()
+    flash('Đã tạo link chia sẻ mới. Link cũ không còn dùng được.', 'ok')
+    return redirect(url_for('edit_assignment', assignment_id=a.id))
+
+
+@app.route('/teacher/assignment/<int:assignment_id>/shared-results')
+def assignment_shared_results(assignment_id):
+    if not require_perm('assignments') or not teacher_only():
+        return redirect(url_for('login'))
+    a = db.session.get(Assignment, assignment_id)
+    if not a or a.created_by != me().id:
+        return 'Không có quyền', 403
+    share = get_assignment_share(a.id, create=False)
+    rows = []
+    if share:
+        rows = SharedSubmission.query.filter_by(
+            share_id=share.id
+        ).order_by(SharedSubmission.id.desc()).all()
+    return render_template(
+        'shared_results.html',
+        assignment=a, share=share, rows=rows
+    )
+
+
+@app.route('/teacher/shared-submission/<int:sid>', methods=['GET', 'POST'])
+def grade_shared_submission(sid):
+    if not require_perm('assignments') or not teacher_only():
+        return redirect(url_for('login'))
+    sub = db.session.get(SharedSubmission, sid)
+    if not sub:
+        return 'Không tìm thấy bài làm', 404
+    a = db.session.get(Assignment, sub.assignment_id)
+    if not a or a.created_by != me().id:
+        return 'Không có quyền', 403
+
+    paper = get_assignment_paper(a.id)
+    paper_items = get_paper_items(a.id) if paper and paper.enabled else []
+
+    # Chấm bài theo phiếu PDF
+    if paper and paper.enabled and paper_items:
+        answers = {
+            x.item_id: x for x in SharedPaperAnswer.query.filter_by(
+                shared_submission_id=sub.id
+            ).all()
+        }
+
+        if request.method == 'POST':
+            manual = 0.0
+            for item in paper_items:
+                if item.qtype != 'essay':
+                    continue
+                ans = answers.get(item.id)
+                if not ans:
+                    continue
+                try:
+                    pts = float(request.form.get(f'score_{ans.id}', 0) or 0)
+                except Exception:
+                    pts = 0
+                pts = max(0, min(item.points or 0, pts))
+                ans.manual_score = pts
+                ans.teacher_note = (request.form.get(f'note_{ans.id}') or '').strip()
+                manual += pts
+            sub.manual_score = round(manual, 4)
+            db.session.commit()
+            flash('Đã lưu điểm tự luận của phiếu trả lời.', 'ok')
+            return redirect(url_for('assignment_shared_results', assignment_id=a.id))
+
+        rows = [(answers.get(item.id), item) for item in paper_items]
+        return render_template(
+            'grade_shared_paper_submission.html',
+            submission=sub, assignment=a, paper=paper, rows=rows
+        )
+
+    # Chấm bài tương tác kiểu cũ
+    links = AssignmentQuestion.query.filter_by(
+        assignment_id=a.id
+    ).order_by(AssignmentQuestion.order_no).all()
+    qs = [db.session.get(BankQuestion, x.question_id) for x in links]
+    qs = [q for q in qs if q]
+    score_map = question_score_map(a, qs)
+    answers = {
+        x.question_id: x for x in SharedAnswer.query.filter_by(
+            shared_submission_id=sub.id
+        ).all()
+    }
+
+    if request.method == 'POST':
+        manual = 0.0
+        for q in qs:
+            if q.qtype != 'essay':
+                continue
+            ans = answers.get(q.id)
+            if not ans:
+                continue
+            qmax = score_map.get(q.id, 0)
+            try:
+                pts = float(request.form.get(f'score_{ans.id}', 0) or 0)
+            except Exception:
+                pts = 0
+            pts = max(0, min(qmax, pts))
+            ans.manual_score = pts
+            ans.teacher_note = (request.form.get(f'note_{ans.id}') or '').strip()
+            manual += pts
+        sub.manual_score = round(manual, 4)
+        db.session.commit()
+        flash('Đã lưu điểm tự luận cho bài làm qua link.', 'ok')
+        return redirect(url_for('assignment_shared_results', assignment_id=a.id))
+
+    data = [(answers.get(q.id), q, score_map.get(q.id, 0)) for q in qs]
+    return render_template(
+        'grade_shared_submission.html',
+        submission=sub, assignment=a, data=data
+    )
+
+
+@app.route('/teacher/assignment/<int:assignment_id>/share/qr.svg')
+def assignment_share_qr(assignment_id):
+    if not require_perm('assignments') or not teacher_only():
+        return 'Không có quyền', 403
+    a = db.session.get(Assignment, assignment_id)
+    if not a or a.created_by != me().id:
+        return 'Không có quyền', 403
+    share = get_assignment_share(a.id, create=False)
+    if not share:
+        return 'Chưa có link chia sẻ', 404
+    link = url_for('shared_assignment_entry', token=share.token, _external=True)
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=8,
+        border=2,
+    )
+    qr.add_data(link)
+    qr.make(fit=True)
+    img = qr.make_image(image_factory=SvgPathImage)
+    buf = BytesIO()
+    img.save(buf)
+    buf.seek(0)
+    return Response(buf.getvalue(), mimetype='image/svg+xml')
+
 
 @app.route('/teacher/assignment/<int:assignment_id>/auto-generate', methods=['POST'])
 def auto_generate_assignment(assignment_id):
@@ -3783,6 +4499,308 @@ def elearning_content(pid, asset_path):
         resp.headers['Cache-Control'] = 'private, max-age=3600'
     return resp
 
+
+@app.route('/bai/<token>', methods=['GET', 'POST'])
+def shared_assignment_entry(token):
+    share = AssignmentShare.query.filter_by(token=token).first()
+    if not share:
+        return render_template('shared_message.html', title='Link không hợp lệ',
+                               message='Không tìm thấy bài kiểm tra từ đường link này.'), 404
+    a = db.session.get(Assignment, share.assignment_id)
+    if not a:
+        return render_template('shared_message.html', title='Bài không tồn tại',
+                               message='Bài kiểm tra này không còn tồn tại.'), 404
+
+    ok, msg = shared_exam_status(share, a)
+    if not ok:
+        return render_template('shared_message.html', title='Chưa thể làm bài', message=msg), 403
+
+    u = me()
+    if share.require_login and not (u and u.role == 'student'):
+        session['after_login'] = request.path
+        flash('Bài này yêu cầu học sinh đăng nhập trước khi làm.', 'error')
+        return redirect(url_for('login'))
+
+    session_key = f'shared_access_{share.token}'
+    access_key = session.get(session_key)
+    if access_key:
+        old = SharedSubmission.query.filter_by(
+            share_id=share.id, access_key=access_key
+        ).first()
+        if old:
+            if old.submitted:
+                return render_template(
+                    'shared_submitted.html',
+                    assignment=a, submission=old
+                )
+            return redirect(url_for('shared_assignment_do', token=share.token))
+
+    if request.method == 'POST':
+        if share.password_hash:
+            password = request.form.get('share_password', '')
+            if not check_password_hash(share.password_hash, password):
+                flash('Mật khẩu bài làm chưa đúng.', 'error')
+                return redirect(url_for('shared_assignment_entry', token=token))
+
+        if u and u.role == 'student':
+            guest_name = u.full_name or u.username
+            classroom = db.session.get(Classroom, u.classroom_id) if u.classroom_id else None
+            guest_class = classroom.name if classroom else ''
+            if share.one_submission:
+                old = SharedSubmission.query.filter_by(
+                    share_id=share.id, student_id=u.id, submitted=True
+                ).first()
+                if old:
+                    return render_template(
+                        'shared_submitted.html',
+                        assignment=a, submission=old,
+                        already_submitted=True
+                    )
+        else:
+            guest_name = (request.form.get('guest_name') or '').strip()
+            guest_class = (request.form.get('guest_class') or '').strip()
+            if not guest_name:
+                flash('Hãy nhập họ và tên học sinh.', 'error')
+                return redirect(url_for('shared_assignment_entry', token=token))
+
+        access_key = secrets.token_urlsafe(24)
+        sub = SharedSubmission(
+            share_id=share.id,
+            assignment_id=a.id,
+            student_id=(u.id if u and u.role == 'student' else None),
+            guest_name=guest_name,
+            guest_class=guest_class,
+            access_key=access_key,
+            started_at=local_now(),
+            max_score=a.score_scale,
+        )
+        db.session.add(sub)
+        db.session.commit()
+        session[session_key] = access_key
+        return redirect(url_for('shared_assignment_do', token=share.token))
+
+    return render_template(
+        'shared_entry.html',
+        assignment=a, share=share,
+        logged_student=(u if u and u.role == 'student' else None)
+    )
+
+
+
+@app.route('/bai/<token>/de-goc.pdf')
+def shared_assignment_paper_pdf(token):
+    share = AssignmentShare.query.filter_by(token=token).first()
+    if not share:
+        return 'Link không hợp lệ', 404
+    a = db.session.get(Assignment, share.assignment_id)
+    paper = get_assignment_paper(share.assignment_id)
+    if not a or not paper or not paper.enabled:
+        return 'Chưa có PDF đề gốc', 404
+
+    ok, msg = shared_exam_status(share, a)
+    if not ok:
+        return msg, 403
+
+    # Nếu link yêu cầu đăng nhập thì vẫn bắt buộc học sinh đã login.
+    if share.require_login:
+        u = me()
+        if not (u and u.role == 'student'):
+            return 'Bài này yêu cầu đăng nhập.', 403
+
+    raw = read_lesson_bytes(paper.file_path)
+    if raw is None:
+        return 'Không tìm thấy PDF đề gốc trên kho lưu trữ.', 404
+
+    resp = send_file(
+        BytesIO(raw), mimetype='application/pdf',
+        as_attachment=False, download_name=paper.file_name,
+        conditional=True
+    )
+    resp.headers['Cache-Control'] = 'private, max-age=600'
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    return resp
+
+
+@app.route('/bai/<token>/lam', methods=['GET', 'POST'])
+def shared_assignment_do(token):
+    share = AssignmentShare.query.filter_by(token=token).first()
+    if not share:
+        return render_template('shared_message.html', title='Link không hợp lệ',
+                               message='Không tìm thấy bài kiểm tra.'), 404
+    a = db.session.get(Assignment, share.assignment_id)
+    if not a:
+        return render_template('shared_message.html', title='Bài không tồn tại',
+                               message='Bài kiểm tra không còn tồn tại.'), 404
+
+    ok, msg = shared_exam_status(share, a)
+    session_key = f'shared_access_{share.token}'
+    access_key = session.get(session_key)
+    sub = SharedSubmission.query.filter_by(
+        share_id=share.id, access_key=access_key
+    ).first() if access_key else None
+
+    if not sub:
+        return redirect(url_for('shared_assignment_entry', token=token))
+    if sub.submitted:
+        return render_template('shared_submitted.html', assignment=a, submission=sub)
+    if not ok:
+        return render_template('shared_message.html', title='Đã đóng bài', message=msg), 403
+
+    elapsed = int((local_now() - sub.started_at).total_seconds())
+    remaining = max(0, a.duration_minutes * 60 - elapsed)
+    if a.due_at:
+        remaining = min(remaining, max(0, int((a.due_at - local_now()).total_seconds())))
+    if share.expires_at:
+        remaining = min(remaining, max(0, int((share.expires_at - local_now()).total_seconds())))
+
+    # ========================================================
+    # V9.6.2: PDF đề gốc + phiếu trả lời
+    # ========================================================
+    paper = get_assignment_paper(a.id)
+    paper_items = get_paper_items(a.id) if paper and paper.enabled else []
+    paper_mode = bool(paper and paper.enabled and paper.file_path)
+
+    if paper_mode:
+        if request.method == 'POST' or remaining <= 0:
+            SharedPaperAnswer.query.filter_by(
+                shared_submission_id=sub.id
+            ).delete(synchronize_session=False)
+
+            auto = 0.0
+            correct_count = 0
+            objective_count = 0
+
+            for item in paper_items:
+                val = (request.form.get(f'paper_{item.id}') or '').strip()
+                pts = 0.0
+                is_correct = False
+
+                if item.qtype == 'mcq':
+                    objective_count += 1
+                    is_correct = bool(item.correct_answer) and (
+                        normalize_mcq_key(val) == normalize_mcq_key(item.correct_answer)
+                    )
+                    if is_correct:
+                        pts = item.points or 0.0
+                        auto += pts
+
+                elif item.qtype == 'short':
+                    objective_count += 1
+                    is_correct = bool(item.correct_answer) and (
+                        normalize_short_answer(val) == normalize_short_answer(item.correct_answer)
+                    )
+                    if is_correct:
+                        pts = item.points or 0.0
+                        auto += pts
+
+                if is_correct:
+                    correct_count += 1
+
+                db.session.add(SharedPaperAnswer(
+                    shared_submission_id=sub.id,
+                    item_id=item.id,
+                    answer_text=val,
+                    auto_score=pts,
+                ))
+
+            sub.auto_score = round(auto, 4)
+            sub.manual_score = 0.0
+            sub.max_score = round(sum((x.points or 0.0) for x in paper_items), 4) or a.score_scale
+            sub.correct_count = correct_count
+            sub.objective_count = objective_count
+            sub.submitted = True
+            sub.submitted_at = local_now()
+            db.session.commit()
+
+            return render_template(
+                'shared_submitted.html',
+                assignment=a, submission=sub
+            )
+
+        return render_template(
+            'shared_paper_exam.html',
+            assignment=a, submission=sub,
+            share=share, paper=paper,
+            paper_items=paper_items,
+            remaining=remaining
+        )
+
+    # ========================================================
+    # Chế độ tương tác cũ của V9.6.1
+    # ========================================================
+    links = AssignmentQuestion.query.filter_by(
+        assignment_id=a.id
+    ).order_by(AssignmentQuestion.order_no).all()
+    questions = [db.session.get(BankQuestion, x.question_id) for x in links]
+    questions = [q for q in questions if q]
+    if a.shuffle_questions:
+        random.Random(sub.id).shuffle(questions)
+
+    score_map = question_score_map(a, questions)
+
+    if request.method == 'POST' or remaining <= 0:
+        SharedAnswer.query.filter_by(
+            shared_submission_id=sub.id
+        ).delete(synchronize_session=False)
+        auto = 0.0
+        correct_count = 0
+        objective_count = 0
+
+        for q in questions:
+            val = (request.form.get(f'q_{q.id}') or '').strip()
+            pts = 0.0
+            is_correct = False
+
+            if q.qtype == 'mcq':
+                objective_count += 1
+                is_correct = val.upper() == (q.correct_answer or '').upper()
+                if is_correct:
+                    pts = score_map.get(q.id, 0)
+                    auto += pts
+            elif q.qtype == 'short':
+                objective_count += 1
+                is_correct = normalize_short_answer(val) == normalize_short_answer(q.correct_answer)
+                if is_correct:
+                    pts = score_map.get(q.id, 0)
+                    auto += pts
+
+            if is_correct:
+                correct_count += 1
+
+            db.session.add(SharedAnswer(
+                shared_submission_id=sub.id,
+                question_id=q.id,
+                answer_text=val,
+                auto_score=pts,
+            ))
+
+        sub.auto_score = round(auto, 4)
+        sub.max_score = a.score_scale
+        sub.correct_count = correct_count
+        sub.objective_count = objective_count
+        sub.submitted = True
+        sub.submitted_at = local_now()
+        db.session.commit()
+
+        return render_template(
+            'shared_submitted.html',
+            assignment=a, submission=sub
+        )
+
+    display = []
+    for q in questions:
+        opts = [('A', q.option_a), ('B', q.option_b), ('C', q.option_c), ('D', q.option_d)]
+        if q.qtype == 'mcq' and a.shuffle_options:
+            random.Random(sub.id * 100000 + q.id).shuffle(opts)
+        display.append((q, opts, score_map.get(q.id, 0)))
+
+    return render_template(
+        'shared_do_assignment.html',
+        assignment=a, submission=sub,
+        display=display, remaining=remaining
+    )
+
+
 @app.route('/student/assignment/<int:assignment_id>/retake', methods=['POST'])
 def retake_assignment(assignment_id):
     if not student_only(): return redirect(url_for('login'))
@@ -4256,6 +5274,63 @@ def run_v8_migrations():
 
         migrations.append((952, migration_952))
 
+
+        def migration_961():
+            # Các bảng mới được db.create_all() tạo trước migration.
+            insp13 = inspect(db.engine)
+            tables = set(insp13.get_table_names())
+            if 'assignment_share' in tables:
+                db.session.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_assignment_share_assignment "
+                    "ON assignment_share (assignment_id)"
+                ))
+                db.session.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_assignment_share_token "
+                    "ON assignment_share (token)"
+                ))
+            if 'shared_submission' in tables:
+                db.session.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_shared_submission_share "
+                    "ON shared_submission (share_id, submitted)"
+                ))
+                db.session.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_shared_submission_assignment "
+                    "ON shared_submission (assignment_id)"
+                ))
+                db.session.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_shared_submission_access "
+                    "ON shared_submission (access_key)"
+                ))
+            if 'shared_answer' in tables:
+                db.session.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_shared_answer_submission "
+                    "ON shared_answer (shared_submission_id)"
+                ))
+
+        migrations.append((961, migration_961))
+
+
+        def migration_962():
+            insp14 = inspect(db.engine)
+            tables = set(insp14.get_table_names())
+            if 'assignment_paper' in tables:
+                db.session.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_assignment_paper_assignment "
+                    "ON assignment_paper (assignment_id)"
+                ))
+            if 'paper_answer_item' in tables:
+                db.session.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_paper_answer_assignment "
+                    "ON paper_answer_item (assignment_id, order_no)"
+                ))
+            if 'shared_paper_answer' in tables:
+                db.session.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_shared_paper_answer_submission "
+                    "ON shared_paper_answer (shared_submission_id)"
+                ))
+
+        migrations.append((962, migration_962))
+
         for version, fn in migrations:
             if version in done:
                 continue
@@ -4355,7 +5430,7 @@ with app.app_context():
 def health():
     return {
         'status': 'ok',
-        'version': '9.6.0-login-99percent-fx',
+        'version': '9.6.3-bank-to-pdf-answer-sheet',
         'timezone': APP_TIMEZONE,
         'database': 'postgresql' if str(app.config['SQLALCHEMY_DATABASE_URI']).startswith('postgresql') else 'sqlite'
     }, 200
@@ -4364,7 +5439,7 @@ def health():
 def ready():
     try:
         db.session.execute(text('SELECT 1'))
-        return {'status': 'ready', 'version': '9.6.0-login-99percent-fx'}, 200
+        return {'status': 'ready', 'version': '9.6.3-bank-to-pdf-answer-sheet'}, 200
     except Exception as e:
         db.session.rollback()
         return {'status': 'not-ready', 'error': str(e)[:160]}, 503

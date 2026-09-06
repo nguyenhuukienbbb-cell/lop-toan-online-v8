@@ -1,0 +1,35 @@
+V9.6.1 - GIAO BÀI BẰNG LINK + QR CODE
+
+Giáo viên:
+- Mở Soạn đề -> mục “Giao bài bằng Link + QR”.
+- Bật/tắt link.
+- Chọn yêu cầu đăng nhập hoặc link công khai.
+- Mật khẩu bài tùy chọn.
+- Đặt ngày/giờ hết hạn link.
+- Giới hạn 1 lần nộp.
+- Copy link.
+- QR Code tự tạo.
+- Có thể tạo lại link mới để vô hiệu link cũ.
+- Xem danh sách bài nộp qua link.
+- Chấm tự luận cho bài làm qua link.
+
+Học sinh:
+- Nhận link hoặc quét QR.
+- Link công khai: nhập Họ tên + Lớp.
+- Link yêu cầu đăng nhập: đăng nhập tài khoản học sinh rồi tự quay về bài.
+- Bấm Bắt đầu làm bài.
+- Đồng hồ đếm ngược.
+- Bấm NỘP BÀI.
+- Hiện “Đã nộp bài thành công”.
+
+Điểm:
+- Trắc nghiệm và trả lời ngắn tự chấm.
+- Tự luận giáo viên chấm.
+- Không hiện điểm cho học sinh sau khi nộp.
+
+Lưu ý giới hạn 1 lần:
+- Với học sinh đăng nhập: kiểm soát chính xác theo tài khoản.
+- Với link công khai: phiên làm bài được giữ bằng session trình duyệt.
+
+Thư viện mới:
+qrcode==8.2

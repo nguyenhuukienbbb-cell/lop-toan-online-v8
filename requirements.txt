@@ -10,3 +10,5 @@ psycopg[binary]>=3.2.9,<3.4
 PyMuPDF==1.26.7
 Pillow==11.3.0
 pywin32; platform_system == "Windows"
+
+qrcode==8.2

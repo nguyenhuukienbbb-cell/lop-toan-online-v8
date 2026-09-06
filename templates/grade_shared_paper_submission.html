@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block heading %}Chấm bài PDF + Phiếu trả lời{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar" style="justify-content:space-between">
+    <div>
+      <h2 style="margin:0">{{submission.guest_name}}</h2>
+      <p class="muted">{{submission.guest_class}} · {{assignment.title}}</p>
+    </div>
+    <div class="toolbar">
+      <a class="btn" target="_blank" href="/teacher/assignment/{{assignment.id}}/paper/file">📄 Mở đề PDF</a>
+      <a class="btn gray" href="/teacher/assignment/{{assignment.id}}/shared-results">← Danh sách</a>
+    </div>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card" style="padding:0;overflow:hidden">
+    <iframe src="/teacher/assignment/{{assignment.id}}/paper/file#toolbar=1&navpanes=0"
+            style="width:100%;height:75vh;border:0;background:#525659"></iframe>
+  </div>
+
+  <form method="post">
+    <div class="card" style="max-height:75vh;overflow:auto">
+      <h3>🧾 Phiếu trả lời</h3>
+      {% for ans,item in rows %}
+      <div class="q">
+        <b>{{item.label or ('Câu ' ~ item.order_no)}} — {{item.points|round(2)}} điểm</b>
+        <p><b>Học sinh:</b> {{ans.answer_text if ans and ans.answer_text else '(Không trả lời)'}}</p>
+
+        {% if item.qtype=='essay' and ans %}
+          <label>Điểm tự luận</label>
+          <input type="number" step="0.01" min="0" max="{{item.points}}"
+                 name="score_{{ans.id}}" value="{{ans.manual_score or 0}}">
+          <label>Nhận xét</label>
+          <input name="note_{{ans.id}}" value="{{ans.teacher_note or ''}}">
+        {% elif ans %}
+          <p>
+            <span class="badge">Đáp án: {{item.correct_answer or 'Chưa cấu hình'}}</span>
+            <span class="badge">Điểm tự động: {{ans.auto_score|round(2)}}</span>
+          </p>
+        {% endif %}
+      </div>
+      {% endfor %}
+      <button class="green big-action">💾 Lưu điểm tự luận</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

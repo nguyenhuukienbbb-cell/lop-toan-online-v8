@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block heading %}Bài nộp qua link{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar" style="justify-content:space-between">
+    <div><h2 style="margin:0">{{assignment.title}}</h2><p class="muted">Danh sách học sinh làm bài qua link/QR. Nếu bài dùng PDF đề gốc, điểm được lấy từ Phiếu trả lời.</p></div>
+    <a class="btn gray" href="/teacher/assignment/{{assignment.id}}">← Soạn đề</a>
+  </div>
+</div>
+<div class="card">
+<table>
+<tr><th>Học sinh</th><th>Lớp</th><th>Bắt đầu</th><th>Nộp bài</th><th>Trạng thái</th><th>Điểm</th><th></th></tr>
+{% for s in rows %}
+<tr>
+  <td><b>{{s.guest_name}}</b></td>
+  <td>{{s.guest_class or '—'}}</td>
+  <td>{{s.started_at.strftime('%d/%m/%Y %H:%M') if s.started_at else ''}}</td>
+  <td>{{s.submitted_at.strftime('%d/%m/%Y %H:%M') if s.submitted_at else '—'}}</td>
+  <td>{% if s.submitted %}<span class="status active">Đã nộp</span>{% else %}<span class="status scheduled">Đang làm</span>{% endif %}</td>
+  <td>{% if s.submitted %}{{s.total_score|round(2)}} / {{s.max_score|round(2)}}{% else %}—{% endif %}</td>
+  <td>{% if s.submitted %}<a class="btn" href="/teacher/shared-submission/{{s.id}}">Chấm/Xem</a>{% endif %}</td>
+</tr>
+{% else %}
+<tr><td colspan="7">Chưa có học sinh nộp bài qua link.</td></tr>
+{% endfor %}
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,38 @@
+V9.6.3 - NGÂN HÀNG CÂU HỎI -> PHIẾU TRẢ LỜI PDF
+
+Mục tiêu:
+Ngân hàng câu hỏi vẫn là dữ liệu chính.
+PDF chỉ dùng để hiển thị nguyên đề, tránh lỗi công thức/hình học.
+
+Quy trình khuyên dùng:
+1. Vào Ngân hàng câu hỏi.
+2. Lọc và chọn các câu cần dùng.
+3. Thêm các câu vào bài kiểm tra.
+4. Trong Soạn đề, upload PDF đề gốc tương ứng.
+5. Bấm:
+   “TẠO PHIẾU TỪ ... CÂU ĐÃ CHỌN”
+6. Hệ thống tự lấy:
+   - thứ tự câu
+   - loại câu
+   - đáp án đúng
+   - điểm của từng câu
+7. Giáo viên kiểm tra nhanh rồi bật Link + QR.
+8. Học sinh xem PDF nguyên bản + điền phiếu trả lời.
+
+Điểm:
+- Điểm trên phiếu lấy theo đúng question_score_map của bài.
+- Trắc nghiệm: lấy A/B/C/D.
+- Trả lời ngắn: lấy correct_answer.
+- Tự luận: không lấy đáp án, giáo viên chấm tay.
+
+An toàn:
+- Nếu bài đã có học sinh nộp qua link, không cho tạo lại toàn bộ phiếu,
+  tránh lệch dữ liệu bài đã nộp.
+- Phiếu thủ công vẫn được giữ như phương án dự phòng.
+
+Lợi ích:
+- Không bỏ Ngân hàng câu hỏi.
+- Không phải nhập lại đáp án.
+- Không phải nhập lại điểm.
+- PDF giữ nguyên công thức/hình học.
+- Ngân hàng vẫn dùng cho lọc, tái sử dụng, tạo đề và thống kê.

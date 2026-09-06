@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block public %}
+<style>
+.public-exam{min-height:100vh;background:#f4f7fb;padding:18px}
+.public-exam .exam-wrap{max-width:980px;margin:auto}
+.public-top{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.96);border:1px solid #dbe3ef;border-radius:14px;padding:12px 16px;margin-bottom:12px;box-shadow:0 8px 20px rgba(15,23,42,.06)}
+.public-top .toolbar{justify-content:space-between}
+.public-exam .q{background:white;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin:12px 0}
+.public-exam .submit-share{width:100%;height:54px;font-size:17px;margin:14px 0}
+</style>
+<div class="public-exam">
+<div class="exam-wrap">
+  <div class="public-top">
+    <div class="toolbar">
+      <div><b>{{assignment.title}}</b><br><span class="muted">{{submission.guest_name}}{% if submission.guest_class %} · {{submission.guest_class}}{% endif %}</span></div>
+      <div><b>⏱ Còn <span id="clock"></span></b></div>
+    </div>
+  </div>
+
+  <form method="post" id="sharedExamForm" onsubmit="return confirm('Nộp bài ngay? Sau khi nộp sẽ không sửa lại bài làm này.')">
+    {% set ns = namespace(last_image='') %}
+    {% for q,opts,qscore in display %}
+      {% set word_render = is_word_render_image(q.image_path) %}
+      {% set tf_question = q.option_a == 'Đúng' and q.option_b == 'Sai' %}
+      <div class="q">
+        <b>Câu {{loop.index}} — {{qscore|round(2)}} điểm</b>
+        <p class="mathtext">{{q.content|rich}}</p>
+        {% if q.image_path and (not word_render or q.image_path != ns.last_image) %}
+          <img class="qimg {% if word_render %}wordqimg{% endif %}" src="{{media_url(q.image_path)}}" alt="Đề bài">
+        {% endif %}
+        {% if q.image_path %}{% set ns.last_image = q.image_path %}{% endif %}
+
+        {% if q.qtype=='mcq' %}
+          {% if word_render and not tf_question %}
+            <div class="answer-letters">
+            {% for key,text in opts %}
+              <label class="option letter-option"><input type="radio" name="q_{{q.id}}" value="{{key}}"> <b>{{key}}</b></label>
+            {% endfor %}
+            </div>
+          {% else %}
+            {% for key,text in opts %}
+              {% if text %}<label class="option mathtext"><input type="radio" name="q_{{q.id}}" value="{{key}}"> {{key}}. {{text|rich}}</label>{% endif %}
+            {% endfor %}
+          {% endif %}
+        {% elif q.qtype=='short' %}
+          <input name="q_{{q.id}}" placeholder="Nhập đáp án ngắn..." autocomplete="off">
+        {% else %}
+          <textarea rows="6" name="q_{{q.id}}" placeholder="Nhập bài làm tự luận..."></textarea>
+        {% endif %}
+      </div>
+    {% endfor %}
+    <button class="green submit-share">✅ NỘP BÀI</button>
+  </form>
+</div>
+</div>
+<script>
+let left={{remaining}};
+let submitted=false;
+function tick(){
+  const el=document.getElementById('clock');
+  let m=Math.floor(Math.max(0,left)/60), ss=Math.max(0,left)%60;
+  el.textContent=m+':'+String(ss).padStart(2,'0');
+  if(left<=0 && !submitted){
+    submitted=true;
+    document.getElementById('sharedExamForm').submit();
+    return;
+  }
+  left--;
+  setTimeout(tick,1000);
+}
+document.getElementById('sharedExamForm').addEventListener('submit',()=>submitted=true);
+tick();
+</script>
+{% endblock %}

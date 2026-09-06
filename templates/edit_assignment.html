@@ -7,6 +7,217 @@
 <p><label><input type="checkbox" name="show_answers" {% if assignment.show_answers %}checked{% endif %}> Cho học sinh xem đáp án đúng sau khi nộp</label> &nbsp; <label><input type="checkbox" name="allow_retake" {% if assignment.allow_retake %}checked{% endif %}> Cho làm lại</label></p><button>Lưu cấu hình</button></form></div>
 {% set st=assignment_status(assignment) %}
 <div class="card publish-card"><div><h3>Trạng thái giao bài: <span class="status {{st[1]}}">{{st[0]}}</span></h3><p class="muted">Lớp nhận bài: <b>{{assignment_class_names(assignment)}}</b>. Hãy lưu cấu hình trước nếu bạn vừa thay đổi lớp hoặc thời gian.</p></div><div class="publish-actions">{% if assignment.is_published %}<form method="post" action="/teacher/assignment/{{assignment.id}}/unpublish" onsubmit="return confirm('Thu hồi bài này? Học sinh sẽ không còn nhìn thấy đề.')"><button class="orange big-action">↩ THU HỒI BÀI</button></form>{% else %}<form method="post" action="/teacher/assignment/{{assignment.id}}/publish"><button class="green big-action">✓ GIAO BÀI CHO HỌC SINH</button></form>{% endif %}</div></div>
+
+
+<div class="card" id="paper-answer-sheet" style="border:2px solid #7c3aed">
+  <div class="toolbar" style="justify-content:space-between;align-items:flex-start">
+    <div>
+      <h3 style="margin:0 0 5px">📄 PDF đề gốc + Phiếu trả lời</h3>
+      <p class="muted" style="margin:0">
+        Dành cho đề có nhiều công thức, hình học, MathType hoặc hình vẽ phức tạp.
+        Học sinh xem trực tiếp PDF nguyên bản, hệ thống chỉ xử lý phiếu trả lời.
+      </p>
+    </div>
+    {% if paper %}
+      <span class="status {% if paper.enabled %}active{% else %}draft{% endif %}">
+        {{'Đang dùng' if paper.enabled else 'Đang tắt'}}
+      </span>
+    {% endif %}
+  </div>
+
+  <div class="grid2" style="margin-top:12px">
+    <div>
+      <h4>1. PDF đề gốc</h4>
+      {% if paper %}
+        <div class="notice" style="background:#f5f3ff;border-color:#ddd6fe">
+          <b>{{paper.file_name}}</b><br>
+          {{paper.page_count}} trang · {{(paper.file_size/1024/1024)|round(2)}} MB
+        </div>
+        <div class="toolbar">
+          <a class="btn" target="_blank" href="/teacher/assignment/{{assignment.id}}/paper/file">👁 Xem PDF</a>
+          <form method="post" action="/teacher/assignment/{{assignment.id}}/paper/settings">
+            <label style="display:flex;gap:7px;align-items:center;margin:0">
+              <input type="checkbox" name="enabled" {% if paper.enabled %}checked{% endif %}>
+              Dùng PDF + phiếu trả lời
+            </label>
+            <button class="green">Lưu</button>
+          </form>
+          <form method="post" action="/teacher/assignment/{{assignment.id}}/paper/delete"
+                onsubmit="return confirm('Gỡ PDF đề gốc khỏi bài này?')">
+            <button class="red">Gỡ PDF</button>
+          </form>
+        </div>
+      {% endif %}
+
+      <form method="post" enctype="multipart/form-data"
+            action="/teacher/assignment/{{assignment.id}}/paper/upload"
+            onsubmit="const b=this.querySelector('button');b.disabled=true;b.textContent='⏳ Đang tải PDF...';">
+        <label>{{'Thay PDF đề gốc' if paper else 'Tải PDF đề gốc'}}</label>
+        <input type="file" name="paper_pdf" accept=".pdf,application/pdf" required>
+        <button class="purple">⬆ {{'Thay PDF' if paper else 'Tải PDF'}}</button>
+      </form>
+      <p class="muted">
+        <b>Khuyến nghị:</b> xuất PDF trực tiếp từ Microsoft Word trên máy giáo viên.
+        Hệ thống không chuyển lại công thức/hình học nên giữ nguyên bố cục của PDF.
+      </p>
+    </div>
+
+    <div>
+      <h4>2. Tạo phiếu trả lời</h4>
+
+      <div style="padding:12px;border:2px solid #16a34a;border-radius:12px;background:#f0fdf4;margin-bottom:12px">
+        <b>⭐ Khuyên dùng: Lấy trực tiếp từ Ngân hàng câu hỏi</b>
+        <p class="muted" style="margin:6px 0 10px">
+          Bài hiện đang có <b>{{selected|length}} câu</b> đã chọn.
+          Hệ thống sẽ tự lấy <b>thứ tự + loại câu + đáp án đúng + điểm</b>,
+          không cần nhập lại.
+        </p>
+        <form method="post"
+              action="/teacher/assignment/{{assignment.id}}/paper/answer-sheet/from-bank"
+              onsubmit="return confirm('Tạo/đồng bộ phiếu trả lời từ các câu đang chọn trong bài? Phiếu hiện tại sẽ được thay thế nếu chưa có học sinh nộp.')">
+          <button class="green" {% if not selected %}disabled{% endif %}>
+            🧠 TẠO PHIẾU TỪ {{selected|length}} CÂU ĐÃ CHỌN
+          </button>
+        </form>
+      </div>
+
+      <details>
+        <summary style="cursor:pointer;font-weight:800">⚙ Tạo phiếu thủ công</summary>
+        <form method="post" action="/teacher/assignment/{{assignment.id}}/paper/answer-sheet/build"
+              onsubmit="return confirm('Tạo lại phiếu sẽ thay phiếu hiện tại nếu chưa có học sinh nộp. Tiếp tục?')"
+              style="margin-top:10px">
+          <div class="grid3">
+            <div><label>Trắc nghiệm</label><input type="number" name="mcq_count" min="0" max="200" value="20"></div>
+            <div><label>Trả lời ngắn</label><input type="number" name="short_count" min="0" max="200" value="0"></div>
+            <div><label>Tự luận</label><input type="number" name="essay_count" min="0" max="100" value="0"></div>
+          </div>
+          <button class="gray">🧾 Tạo phiếu thủ công</button>
+        </form>
+        <p class="muted">
+          Chỉ dùng khi PDF không được tạo từ các câu đang chọn trong Ngân hàng.
+        </p>
+      </details>
+    </div>
+  </div>
+
+  {% if paper_items %}
+  <details style="margin-top:12px" open>
+    <summary style="cursor:pointer;font-weight:800">🧾 Cấu hình phiếu trả lời ({{paper_items|length}} câu)</summary>
+    <div class="notice" style="margin-top:8px;background:#eff6ff;border-color:#bfdbfe">
+      Nếu phiếu được tạo từ Ngân hàng câu hỏi, bạn vẫn có thể sửa lại <b>loại câu, đáp án hoặc điểm</b> tại đây trước khi giao bài.
+    </div>
+    <form method="post" action="/teacher/assignment/{{assignment.id}}/paper/answer-sheet/save" style="margin-top:10px">
+      <div style="overflow:auto;max-height:520px;border:1px solid #e5e7eb;border-radius:10px">
+        <table style="margin:0">
+          <tr>
+            <th style="width:70px">STT</th>
+            <th>Tên câu</th>
+            <th style="width:150px">Loại</th>
+            <th style="width:180px">Đáp án đúng</th>
+            <th style="width:110px">Điểm</th>
+          </tr>
+          {% for x in paper_items %}
+          <tr>
+            <td><b>{{x.order_no}}</b></td>
+            <td><input name="label_{{x.id}}" value="{{x.label}}" style="margin:0"></td>
+            <td>
+              <select name="qtype_{{x.id}}" style="margin:0">
+                <option value="mcq" {% if x.qtype=='mcq' %}selected{% endif %}>Trắc nghiệm</option>
+                <option value="short" {% if x.qtype=='short' %}selected{% endif %}>Trả lời ngắn</option>
+                <option value="essay" {% if x.qtype=='essay' %}selected{% endif %}>Tự luận</option>
+              </select>
+            </td>
+            <td>
+              <input name="correct_{{x.id}}" value="{{x.correct_answer or ''}}"
+                     placeholder="{{'A/B/C/D' if x.qtype=='mcq' else ('Đáp án' if x.qtype=='short' else 'Chấm tay')}}"
+                     style="margin:0">
+            </td>
+            <td><input type="number" step="0.01" min="0" name="points_{{x.id}}" value="{{x.points|round(4)}}" style="margin:0"></td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+      <button class="green" style="margin-top:10px">💾 Lưu đáp án & điểm</button>
+    </form>
+  </details>
+  {% endif %}
+</div>
+
+<div class="card" style="border:2px solid #2563eb">
+  <div class="toolbar" style="justify-content:space-between;align-items:flex-start">
+    <div>
+      <h3 style="margin:0 0 5px">🔗 Giao bài bằng Link + QR</h3>
+      <p class="muted" style="margin:0">Gửi link qua Zalo/Messenger hoặc cho học sinh quét QR để vào làm bài.</p>
+    </div>
+    {% if share_link %}
+      <a class="btn gray" href="/teacher/assignment/{{assignment.id}}/shared-results">📊 Bài nộp qua link</a>
+    {% endif %}
+  </div>
+
+  <form method="post" action="/teacher/assignment/{{assignment.id}}/share">
+    <div class="grid2">
+      <div>
+        <label><input type="checkbox" name="enabled" {% if share_link and share_link.enabled %}checked{% endif %}> Bật link chia sẻ</label>
+        <label><input type="checkbox" name="require_login" {% if share_link and share_link.require_login %}checked{% endif %}> Yêu cầu học sinh đăng nhập</label>
+        <label><input type="checkbox" name="one_submission" {% if not share_link or share_link.one_submission %}checked{% endif %}> Giới hạn 1 lần nộp</label>
+      </div>
+      <div>
+        <label>Link hết hạn</label>
+        <input type="datetime-local" name="expires_at" value="{{share_link.expires_at.strftime('%Y-%m-%dT%H:%M') if share_link and share_link.expires_at else ''}}">
+        <label>Mật khẩu bài (không bắt buộc)</label>
+        <input name="share_password" type="password" placeholder="{% if share_link and share_link.password_hash %}Đã có mật khẩu – nhập mới để đổi{% else %}Để trống = không dùng mật khẩu{% endif %}">
+        {% if share_link and share_link.password_hash %}
+          <label><input type="checkbox" name="clear_password"> Bỏ mật khẩu hiện tại</label>
+        {% endif %}
+      </div>
+    </div>
+    <button class="green">💾 Lưu cấu hình chia sẻ</button>
+  </form>
+
+  {% if share_link %}
+  <div style="margin-top:14px;padding:12px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe">
+    <label>Đường link học sinh</label>
+    <div class="toolbar">
+      <input id="shareUrl" value="{{share_url}}" readonly style="flex:1;min-width:260px;margin:0">
+      <button type="button" class="green" onclick="copyShareUrl()">📋 Copy link</button>
+      <a class="btn" href="{{share_url}}" target="_blank">👁 Xem thử</a>
+    </div>
+    <div class="grid2" style="margin-top:10px">
+      <div>
+        <img src="/teacher/assignment/{{assignment.id}}/share/qr.svg" alt="QR Code" style="width:170px;height:170px;background:#fff;padding:8px;border-radius:12px;border:1px solid #dbeafe">
+        <p class="muted">Học sinh có thể dùng camera điện thoại để quét QR.</p>
+      </div>
+      <div>
+        <p><b>Trạng thái:</b>
+          {% if share_link.enabled %}<span class="status active">Đang bật</span>
+          {% else %}<span class="status draft">Đang tắt</span>{% endif %}
+        </p>
+        <p class="muted">Nếu không yêu cầu đăng nhập, học sinh chỉ cần nhập <b>Họ tên + Lớp</b> rồi bắt đầu làm.</p>
+        <form method="post" action="/teacher/assignment/{{assignment.id}}/share/regenerate" onsubmit="return confirm('Tạo link mới? Link cũ sẽ ngừng hoạt động.')">
+          <button class="orange">♻ Tạo link mới</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function copyShareUrl(){
+  const el=document.getElementById('shareUrl');
+  if(!el) return;
+  navigator.clipboard.writeText(el.value).then(function(){
+    const old=el.value;
+    el.select();
+    alert('Đã copy link giao bài.');
+  }).catch(function(){
+    el.select();
+    document.execCommand('copy');
+    alert('Đã copy link giao bài.');
+  });
+}
+</script>
+
 <div class="card" style="border:2px solid #22c55e"><h3>✅ Đề Phân số của bạn đã được tích hợp sẵn</h3><p class="muted">Bản V6.2 đã đọc riêng file <b>CauHoi_PhanSo_CoDapAn_K12Online(1).docx</b>, giữ các công thức MathType dưới dạng ảnh và chuyển câu Đúng/Sai thành các mệnh đề tự chấm.</p><form method="post" action="/teacher/assignment/{{assignment.id}}/import-k12-fraction-sample" onsubmit="return confirm('Thêm toàn bộ đề Phân số mẫu vào bài này?')"><button class="green big-action">+ NẠP ĐỀ PHÂN SỐ MẪU</button></form></div>
 <div class="card" style="border:2px solid #7c3aed"><h3>⚡ Tạo đề tự động theo độ khó</h3><p class="muted">Chọn khối và kiểu đề. Hệ thống tự lấy câu chưa có trong đề từ ngân hàng.</p><form method="post" action="/teacher/assignment/{{assignment.id}}/auto-generate"><div class="grid2"><div><label>Khối</label><select name="auto_grade" required><option value="">-- Chọn khối --</option>{% for g in ['6','7','8','9'] %}<option value="{{g}}">Lớp {{g}}</option>{% endfor %}</select></div><div><label>Nhóm nội dung</label><select name="auto_domain"><option value="">Tất cả</option>{% if assignment.subject=='Tin học' %}<option>Máy tính & mạng</option><option>Dữ liệu & ứng dụng</option><option>Thuật toán & lập trình</option><option>An toàn số</option>{% else %}<option>Đại số</option><option>Hình học</option>{% endif %}</select></div><div><label>Kiểu đề</label><select name="auto_preset"><option>Dễ</option><option selected>Trung bình</option><option>Khó</option></select></div><div><label>Số câu</label><input type="number" name="auto_count" min="1" max="100" value="20"></div><div><label>Chủ đề (để trống = tất cả)</label><input name="auto_topic" placeholder="Ví dụ: Phân số"></div></div><div class="flash" style="background:#f5f3ff"><b>Cơ cấu:</b> Đề Dễ = 70% dễ + 30% trung bình; Đề Trung bình = 30% dễ + 50% trung bình + 20% khó; Đề Khó = 10% dễ + 30% trung bình + 60% khó.</div><button class="green big-action">⚡ TẠO ĐỀ TỰ ĐỘNG</button></form></div><div class="card"><h3>📄 Tạo đề trực tiếp từ file Word</h3><p class="muted">Câu hỏi nhập vào sẽ vừa được thêm vào đề này, vừa lưu vào Ngân hàng câu hỏi. Công thức/hình trong Word được giữ theo chế độ render nguyên câu. Bạn chỉ cần chọn file Word và nhập như bình thường, không cần thao tác thêm.</p><p><a class="btn green" href="/teacher/word-template">⬇ TẢI MẪU WORD TRẮC NGHIỆM + TỰ LUẬN</a></p><div class="flash" style="background:#eff6ff"><b>Mẫu hỗ trợ:</b> A/B/C/D, Đúng/Sai a)-d), trả lời ngắn và tự luận. Với câu tự luận dùng dòng <b>Loại: Tự luận</b>; trắc nghiệm dùng dòng <b>Đáp án:</b> để hệ thống tự chấm.</div><form method="post" action="/teacher/assignment/{{assignment.id}}/upload-word" enctype="multipart/form-data" onsubmit="const b=this.querySelector('button[type=submit],button:not([type])'); if(b){b.disabled=true;b.textContent='⏳ Đang đọc công thức và xử lý đề... Vui lòng chờ';}"><div class="grid2"><div><label>Khối</label><input name="grade" placeholder="6"></div><div><label>Chủ đề</label><input name="topic" placeholder="Phân số"></div><div><label>Mức độ mặc định</label><select name="difficulty"><option>Dễ</option><option selected>Trung bình</option><option>Khó</option></select></div><div><label>Nhóm nội dung</label><select name="domain">{% if assignment.subject=='Tin học' %}<option>Máy tính & mạng</option><option>Dữ liệu & ứng dụng</option><option>Thuật toán & lập trình</option><option>An toàn số</option>{% else %}<option selected>Đại số</option><option>Hình học</option>{% endif %}</select></div></div><input type="file" name="word_file" accept=".docx" required><button class="green">Nhập Word vào đề</button></form></div>
 <div class="grid2">

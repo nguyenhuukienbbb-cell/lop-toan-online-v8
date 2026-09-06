@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block heading %}Chấm bài qua link{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar" style="justify-content:space-between">
+    <div>
+      <h2 style="margin:0">{{submission.guest_name}}</h2>
+      <p class="muted">{{submission.guest_class}} · {{assignment.title}}</p>
+    </div>
+    <a class="btn gray" href="/teacher/assignment/{{assignment.id}}/shared-results">← Danh sách</a>
+  </div>
+</div>
+<form method="post">
+{% for ans,q,qmax in data %}
+<div class="card">
+  <b>Câu {{loop.index}} — tối đa {{qmax|round(2)}} điểm</b>
+  <p class="mathtext">{{q.content|rich}}</p>
+  {% if q.image_path %}<img class="qimg" src="{{media_url(q.image_path)}}">{% endif %}
+  <p><b>Bài làm:</b> {{ans.answer_text if ans else '(Không trả lời)'}}</p>
+  {% if q.qtype=='essay' and ans %}
+    <div class="grid2">
+      <div><label>Điểm tự luận</label><input type="number" step="0.01" min="0" max="{{qmax}}" name="score_{{ans.id}}" value="{{ans.manual_score or 0}}"></div>
+      <div><label>Nhận xét</label><input name="note_{{ans.id}}" value="{{ans.teacher_note or ''}}"></div>
+    </div>
+  {% elif ans %}
+    <p><span class="badge">Điểm tự động: {{ans.auto_score|round(2)}}</span></p>
+  {% endif %}
+</div>
+{% endfor %}
+<button class="green big-action">💾 Lưu điểm</button>
+</form>
+{% endblock %}

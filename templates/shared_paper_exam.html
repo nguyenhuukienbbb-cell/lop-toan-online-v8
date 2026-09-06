@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+{% block public %}
+<style>
+.paper-page{
+  min-height:100vh;
+  background:#eef3f8;
+  padding:10px;
+}
+.paper-header{
+  position:sticky;
+  top:0;
+  z-index:20;
+  max-width:1600px;
+  margin:0 auto 10px;
+  background:rgba(255,255,255,.97);
+  border:1px solid #dbe3ef;
+  border-radius:13px;
+  padding:10px 14px;
+  box-shadow:0 6px 20px rgba(15,23,42,.07);
+}
+.paper-header .toolbar{justify-content:space-between}
+.paper-layout{
+  max-width:1600px;
+  margin:auto;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 390px;
+  gap:10px;
+  align-items:start;
+}
+.pdf-box{
+  background:#fff;
+  border:1px solid #dbe3ef;
+  border-radius:12px;
+  overflow:hidden;
+  min-height:calc(100vh - 90px);
+}
+.pdf-frame{
+  display:block;
+  width:100%;
+  height:calc(100vh - 92px);
+  border:0;
+  background:#525659;
+}
+.answer-box{
+  position:sticky;
+  top:72px;
+  background:#fff;
+  border:1px solid #dbe3ef;
+  border-radius:12px;
+  padding:12px;
+  max-height:calc(100vh - 84px);
+  overflow:auto;
+}
+.answer-title{margin:0 0 6px;color:#123f86}
+.answer-note{font-size:12px;color:#64748b;margin-bottom:10px}
+.answer-item{
+  border-top:1px solid #eef2f7;
+  padding:9px 0;
+}
+.answer-item:first-of-type{border-top:0}
+.mcq-row{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:5px}
+.choice{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:4px;
+  border:1px solid #d9e3ef;
+  border-radius:8px;
+  padding:7px 4px;
+  cursor:pointer;
+}
+.choice:has(input:checked){
+  border-color:#2563eb;
+  background:#eff6ff;
+  color:#1d4ed8;
+  font-weight:800;
+}
+.answer-item input[type=text]{margin:4px 0 0}
+.answer-item textarea{margin:4px 0 0;min-height:90px}
+.submit-paper{
+  position:sticky;
+  bottom:0;
+  width:100%;
+  min-height:50px;
+  font-size:16px;
+  margin-top:10px;
+  box-shadow:0 -8px 18px rgba(255,255,255,.92);
+}
+@media(max-width:950px){
+  .paper-layout{grid-template-columns:1fr}
+  .pdf-box{min-height:64vh}
+  .pdf-frame{height:64vh}
+  .answer-box{position:static;max-height:none}
+}
+</style>
+
+<div class="paper-page">
+  <div class="paper-header">
+    <div class="toolbar">
+      <div>
+        <b>📄 {{assignment.title}}</b><br>
+        <span class="muted">{{submission.guest_name}}{% if submission.guest_class %} · {{submission.guest_class}}{% endif %}</span>
+      </div>
+      <div>
+        <b>⏱ Còn <span id="clock"></span></b>
+      </div>
+    </div>
+  </div>
+
+  <form method="post" id="paperForm"
+        onsubmit="return confirm('Nộp bài ngay? Sau khi nộp sẽ không sửa lại bài làm này.')">
+    <div class="paper-layout">
+      <div class="pdf-box">
+        <iframe class="pdf-frame"
+                src="/bai/{{share.token}}/de-goc.pdf#toolbar=1&navpanes=0&view=FitH"
+                title="PDF đề gốc"></iframe>
+      </div>
+
+      <aside class="answer-box">
+        <h3 class="answer-title">🧾 Phiếu trả lời</h3>
+        <div class="answer-note">
+          Xem đề ở khung bên trái và nhập đáp án tại đây.
+          Công thức/hình học nằm trong PDF nên không bị hệ thống tách lại.
+        </div>
+
+        {% if paper_items %}
+          {% for x in paper_items %}
+          <div class="answer-item">
+            <b>{{x.label or ('Câu ' ~ x.order_no)}}</b>
+            {% if x.qtype=='mcq' %}
+              <div class="mcq-row">
+                {% for key in ['A','B','C','D'] %}
+                <label class="choice">
+                  <input type="radio" name="paper_{{x.id}}" value="{{key}}"> {{key}}
+                </label>
+                {% endfor %}
+              </div>
+            {% elif x.qtype=='short' %}
+              <input type="text" name="paper_{{x.id}}" placeholder="Nhập đáp án...">
+            {% else %}
+              <textarea name="paper_{{x.id}}" placeholder="Nhập bài làm tự luận..."></textarea>
+            {% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="flash error">
+            Giáo viên chưa tạo phiếu trả lời cho bài này.
+          </div>
+        {% endif %}
+
+        {% if paper_items %}
+          <button class="green submit-paper">✅ NỘP BÀI</button>
+        {% endif %}
+      </aside>
+    </div>
+  </form>
+</div>
+
+<script>
+let left={{remaining}};
+let submitted=false;
+function tick(){
+  const el=document.getElementById('clock');
+  let safe=Math.max(0,left);
+  let m=Math.floor(safe/60), ss=safe%60;
+  el.textContent=m+':'+String(ss).padStart(2,'0');
+  if(left<=0 && !submitted){
+    submitted=true;
+    document.getElementById('paperForm').submit();
+    return;
+  }
+  left--;
+  setTimeout(tick,1000);
+}
+document.getElementById('paperForm').addEventListener('submit',()=>submitted=true);
+tick();
+</script>
+{% endblock %}
