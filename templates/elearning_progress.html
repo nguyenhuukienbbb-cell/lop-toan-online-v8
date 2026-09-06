@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block heading %}Tiến độ eLearning{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar" style="justify-content:space-between">
+    <div><h2 style="margin:0">{{package.title}}</h2><p class="muted">Theo dõi SCORM: trạng thái, điểm, vị trí và thời gian học.</p></div>
+    <a class="btn gray" href="/teacher/elearning">← Quay lại</a>
+  </div>
+</div>
+<div class="card" style="overflow-x:auto">
+<table>
+<tr><th>Học sinh</th><th>Trạng thái</th><th>Kết quả</th><th>Điểm</th><th>SCORM</th><th>Vị trí</th><th>Thời gian</th><th>Lần gần nhất</th></tr>
+{% for p,u in rows %}
+<tr>
+<td><b>{{u.full_name}}</b><br><span class="muted">{{u.username}}</span></td>
+<td>{% if p.status=='completed' %}<span class="status active">✓ Hoàn thành</span>{% else %}<span class="status scheduled">Đang học</span>{% endif %}<br><span class="muted">{{p.completion_status or p.lesson_status or ''}}</span></td>
+<td>{{p.success_status or '—'}}</td>
+<td>{% if p.score_raw is not none %}<b>{{p.score_raw|round(2)}}</b>{% if p.score_max is not none %} / {{p.score_max|round(2)}}{% endif %}{% else %}—{% endif %}</td>
+<td>{{p.scorm_version or package.package_type}}</td>
+<td style="max-width:180px;word-break:break-word">{{p.lesson_location or '—'}}</td>
+<td>{{p.total_time or p.session_time or '—'}}</td>
+<td>{{p.last_seen_at.strftime('%d/%m/%Y %H:%M') if p.last_seen_at else ''}}</td>
+</tr>
+{% else %}<tr><td colspan="8">Chưa có học sinh mở bài.</td></tr>{% endfor %}
+</table>
+</div>
+{% endblock %}

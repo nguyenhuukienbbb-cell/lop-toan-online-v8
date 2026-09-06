@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block heading %}Bài giảng eLearning{% endblock %}
+{% block content %}
+<div class="grid2">
+  <div class="card">
+    <h3>🎓 Tải gói eLearning</h3>
+    <p class="muted">Hỗ trợ ZIP HTML5 từ iSpring, Storyline, Captivate và các gói có index.html. Gói SCORM có imsmanifest.xml cũng được nhận diện để mở nội dung.</p>
+    <form method="post" enctype="multipart/form-data" onsubmit="const b=this.querySelector('button');b.disabled=true;b.textContent='⏳ Đang kiểm tra & tải gói...';">
+      <label>Tiêu đề</label>
+      <input name="title" placeholder="Có thể để trống để lấy tên file">
+
+      <div class="grid2">
+        <div><label>Môn học</label><select name="subject"><option>Toán</option><option>Tin học</option><option>Toán tiếng Anh</option></select></div>
+        <div><label>Giao cho lớp</label><select name="classroom_id" required>{% for c in classes %}<option value="{{c.id}}">{{c.name}}</option>{% endfor %}</select></div>
+      </div>
+
+      <label>Mô tả</label>
+      <textarea name="description" rows="3" placeholder="Nội dung bài giảng..."></textarea>
+
+      <label>Gói eLearning ZIP</label>
+      <input type="file" name="elearning_zip" accept=".zip,application/zip" required>
+      <p class="muted">Nên upload ZIP xuất bản trực tiếp từ phần mềm eLearning. Hệ thống giữ nguyên ZIP trên Supabase, không upload từng file nhỏ.</p>
+
+      <label><input type="checkbox" name="is_published"> Giao ngay cho học sinh</label>
+      <div style="margin-top:12px"><button class="green">⬆ Tải bài eLearning</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>📦 Gói đã tải ({{packages|length}})</h3>
+    {% for x in packages %}
+      {% set st=stats.get(x.id,{}) %}
+      <div class="q">
+        <b>{{x.title}}</b>
+        <span class="badge">{{x.subject}}</span>
+        <span class="badge">{{x.package_type}}</span>
+        <span class="badge">{{'Đã giao' if x.is_published else 'Bản nháp'}}</span>
+        <p class="muted">{{x.description}}</p>
+        <p class="muted">📦 {{x.zip_name}} · File chạy: <b>{{x.entrypoint}}</b></p>
+        <p>
+          <span class="badge">Đã mở: {{st.get('total',0)}}</span>
+          <span class="badge">Hoàn thành: {{st.get('completed',0)}}</span>
+        </p>
+        <div class="action-row">
+          <a class="btn" href="/elearning/{{x.id}}/launch" target="_blank">👁 Xem thử</a>
+          <a class="btn gray" href="/teacher/elearning/{{x.id}}/progress">📊 Tiến độ</a>
+          <a class="btn gray" href="/teacher/elearning/{{x.id}}/download">⬇ ZIP gốc</a>
+          <form method="post" action="/teacher/elearning/{{x.id}}/toggle-publish"><button class="{{'orange' if x.is_published else 'green'}}">{{'Thu hồi' if x.is_published else 'Giao bài'}}</button></form>
+          <form method="post" action="/teacher/elearning/{{x.id}}/delete" onsubmit="return confirm('Xóa gói eLearning này và dữ liệu tiến độ?')"><button class="red">Xóa</button></form>
+        </div>
+      </div>
+    {% else %}
+      <p class="muted">Chưa có gói eLearning.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

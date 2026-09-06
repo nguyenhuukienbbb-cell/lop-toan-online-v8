@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% block heading %}{{package.title}}{% endblock %}
+{% block content %}
+<div class="card" style="padding:10px 12px">
+  <div class="toolbar" style="justify-content:space-between">
+    <div>
+      <b>🎓 {{package.title}}</b>
+      <span class="badge">{{package.package_type}}</span>
+      <span class="badge" id="scormStatus">{{progress.completion_status or progress.lesson_status or ('Đã hoàn thành' if progress.status=='completed' else 'Đang học')}}</span>
+      <span class="badge" id="scormScore">{% if progress.score_raw is not none %}Điểm: {{progress.score_raw|round(2)}}{% else %}Chưa có điểm{% endif %}</span>
+    </div>
+    <div class="toolbar">
+      <a class="btn gray" target="_blank" href="/student/elearning/{{package.id}}">↗ Mở cửa sổ mới</a>
+      {% if progress.status!='completed' %}
+      <form method="post" action="/student/elearning/{{package.id}}/complete"><button class="green">✓ Đánh dấu hoàn thành</button></form>
+      {% endif %}
+    </div>
+  </div>
+  <p class="muted" style="margin:7px 0 0">SCORM tracking tự động: trạng thái, điểm và vị trí học được lưu khi bài giảng gọi Commit/Finish/Terminate.</p>
+</div>
+<div class="card" style="padding:0;overflow:hidden">
+  <iframe id="scormFrame" src="/elearning/{{package.id}}/launch" title="{{package.title}}" style="display:block;width:100%;height:80vh;border:0;background:#fff" allowfullscreen></iframe>
+</div>
+<script>
+(function(){
+const PID={{package.id}};
+const STATE={{scorm_state|tojson}};
+let initialized=false, terminated=false, lastError='0';
+let values={};
+
+function s(v){ return (v===null||v===undefined)?'':String(v); }
+function setInitial(){
+  // SCORM 1.2
+  values['cmi.core.student_id']=s(STATE.student_id);
+  values['cmi.core.student_name']=s(STATE.student_name);
+  values['cmi.core.lesson_status']=s(STATE.lesson_status||'not attempted');
+  values['cmi.core.lesson_location']=s(STATE.lesson_location);
+  values['cmi.core.score.raw']=STATE.score_raw==null?'':s(STATE.score_raw);
+  values['cmi.core.score.min']=STATE.score_min==null?'':s(STATE.score_min);
+  values['cmi.core.score.max']=STATE.score_max==null?'':s(STATE.score_max);
+  values['cmi.core.total_time']=s(STATE.total_time||'0000:00:00.00');
+  values['cmi.core.entry']=s(STATE.entry_value|| (STATE.suspend_data?'resume':'ab-initio'));
+  values['cmi.core.credit']='credit'; values['cmi.core.lesson_mode']='normal';
+  values['cmi.suspend_data']=s(STATE.suspend_data);
+  values['cmi.core.exit']=s(STATE.exit_value);
+  values['cmi.core.session_time']=s(STATE.session_time);
+  // SCORM 2004
+  values['cmi.learner_id']=s(STATE.student_id);
+  values['cmi.learner_name']=s(STATE.student_name);
+  values['cmi.completion_status']=s(STATE.completion_status||'unknown');
+  values['cmi.success_status']=s(STATE.success_status||'unknown');
+  values['cmi.location']=s(STATE.lesson_location);
+  values['cmi.score.raw']=STATE.score_raw==null?'':s(STATE.score_raw);
+  values['cmi.score.min']=STATE.score_min==null?'':s(STATE.score_min);
+  values['cmi.score.max']=STATE.score_max==null?'':s(STATE.score_max);
+  values['cmi.score.scaled']=STATE.score_scaled==null?'':s(STATE.score_scaled);
+  values['cmi.total_time']=s(STATE.total_time||'PT0S');
+  values['cmi.entry']=s(STATE.entry_value|| (STATE.suspend_data?'resume':'ab-initio'));
+  values['cmi.mode']='normal'; values['cmi.credit']='credit';
+  values['cmi.suspend_data']=s(STATE.suspend_data);
+  values['cmi.exit']=s(STATE.exit_value);
+  values['cmi.session_time']=s(STATE.session_time);
+  if(STATE.extra){ Object.keys(STATE.extra).forEach(k=>{ if(!(k in values)) values[k]=s(STATE.extra[k]); }); }
+}
+setInitial();
+
+function buildPayload(ver){
+  let extra={}; Object.keys(values).forEach(k=>{ if(k.startsWith('cmi.')) extra[k]=values[k]; });
+  const is12=ver==='1.2';
+  return {
+    scorm_version:ver,
+    lesson_status: values['cmi.core.lesson_status']||'',
+    completion_status: values['cmi.completion_status']||'',
+    success_status: values['cmi.success_status']||'',
+    score_raw: values[is12?'cmi.core.score.raw':'cmi.score.raw'],
+    score_min: values[is12?'cmi.core.score.min':'cmi.score.min'],
+    score_max: values[is12?'cmi.core.score.max':'cmi.score.max'],
+    score_scaled: values['cmi.score.scaled'],
+    lesson_location: values[is12?'cmi.core.lesson_location':'cmi.location']||'',
+    suspend_data: values['cmi.suspend_data']||'',
+    session_time: values[is12?'cmi.core.session_time':'cmi.session_time']||'',
+    total_time: values[is12?'cmi.core.total_time':'cmi.total_time']||'',
+    exit_value: values[is12?'cmi.core.exit':'cmi.exit']||'',
+    entry_value: values[is12?'cmi.core.entry':'cmi.entry']||'',
+    extra:extra
+  };
+}
+
+async function commit(ver, beacon){
+  const payload=buildPayload(ver);
+  try{
+    if(beacon && navigator.sendBeacon){
+      const blob=new Blob([JSON.stringify(payload)],{type:'application/json'});
+      navigator.sendBeacon('/student/elearning/'+PID+'/scorm-commit',blob); return true;
+    }
+    const r=await fetch('/student/elearning/'+PID+'/scorm-commit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),keepalive:true});
+    const j=await r.json(); if(j&&j.ok){ updateBadges(j.state); return true; }
+  }catch(e){}
+  lastError='101'; return false;
+}
+function updateBadges(st){
+  if(!st)return;
+  const status=st.completion_status||st.lesson_status||'Đang học';
+  const el=document.getElementById('scormStatus'); if(el)el.textContent=status;
+  const sc=document.getElementById('scormScore'); if(sc)sc.textContent=st.score_raw==null?'Chưa có điểm':'Điểm: '+st.score_raw;
+}
+function getValue(k){ lastError='0'; return (k in values)?s(values[k]):''; }
+function setValue(k,v){ lastError='0'; values[k]=s(v); return 'true'; }
+function errString(code){ const map={'0':'No error','101':'General exception','301':'Not initialized','401':'Not implemented'}; return map[s(code)]||'Unknown error'; }
+
+// SCORM 1.2 API
+window.API={
+  LMSInitialize:function(){ initialized=true; terminated=false; lastError='0'; return 'true'; },
+  LMSFinish:function(){ commit('1.2',true); terminated=true; return 'true'; },
+  LMSGetValue:function(k){ if(!initialized){lastError='301';} return getValue(k); },
+  LMSSetValue:function(k,v){ if(!initialized){lastError='301';} return setValue(k,v); },
+  LMSCommit:function(){ commit('1.2',false); return 'true'; },
+  LMSGetLastError:function(){ return lastError; },
+  LMSGetErrorString:function(c){ return errString(c); },
+  LMSGetDiagnostic:function(c){ return errString(c||lastError); }
+};
+// SCORM 2004 API
+window.API_1484_11={
+  Initialize:function(){ initialized=true; terminated=false; lastError='0'; return 'true'; },
+  Terminate:function(){ commit('2004',true); terminated=true; return 'true'; },
+  GetValue:function(k){ if(!initialized){lastError='301';} return getValue(k); },
+  SetValue:function(k,v){ if(!initialized){lastError='301';} return setValue(k,v); },
+  Commit:function(){ commit('2004',false); return 'true'; },
+  GetLastError:function(){ return lastError; },
+  GetErrorString:function(c){ return errString(c); },
+  GetDiagnostic:function(c){ return errString(c||lastError); }
+};
+
+// Auto-save every 30s; package Commit calls still save immediately.
+setInterval(function(){ if(initialized&&!terminated){ commit(STATE.scorm_version||'2004',false); } },30000);
+window.addEventListener('pagehide',function(){ if(initialized&&!terminated){ commit(STATE.scorm_version||'2004',true); } });
+})();
+</script>
+{% endblock %}
