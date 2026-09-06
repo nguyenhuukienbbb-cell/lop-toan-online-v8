@@ -1,0 +1,26 @@
+V9.2.0 - SỬA ẢNH ĐỀ BÀI KHÔNG HIỂN THỊ CHO HỌC SINH
+
+Triệu chứng:
+- Học sinh thấy câu hỏi nhưng vị trí “Đề bài” là ảnh hỏng.
+- Template dùng /media/{{q.image_path}}.
+- Bản cũ không có route /media để trả ảnh.
+
+Đã sửa:
+1. Thêm route /media/<path>.
+2. Hỗ trợ ảnh cũ trong static/uploads.
+3. Hỗ trợ ảnh mới trong Supabase Storage.
+4. Ảnh giáo viên upload từ nay được lưu vào Supabase khi chạy online.
+5. Ảnh/công thức render từ Word từ nay cũng được lưu vào Supabase.
+6. Render redeploy không làm mất ảnh mới nữa.
+
+QUAN TRỌNG VỚI ẢNH CŨ:
+- Nếu ảnh cũ vẫn còn trong static/uploads của GitHub/server thì V9.2.0 sẽ hiển thị lại ngay.
+- Nếu ảnh cũ từng chỉ nằm trên ổ tạm của Render và đã bị mất sau deploy, code không thể khôi phục file ảnh đã mất.
+  Khi đó cần nhập lại file Word gốc một lần sau khi nâng lên V9.2.0.
+  Ảnh nhập lại sẽ được lưu vào Supabase và không mất ở lần deploy sau.
+
+CẬP NHẬT:
+- Thay app.py V9.2.0 lên GitHub.
+- Commit.
+- Render deploy latest commit.
+- Không xóa Supabase/database.

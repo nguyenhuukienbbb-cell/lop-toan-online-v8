@@ -1,0 +1,22 @@
+V9.3.4 - SỬA MATH TYPE / EQUATION KHI TẠO BÀI KIỂM TRA TỪ WORD
+
+Nguyên nhân:
+- Nhiều file Word cũ lưu công thức MathType dưới dạng OLE Equation.DSMT4.
+- Word kèm preview WMF. LibreOffice trên Render có thể bỏ mất OLE/WMF khi chuyển PDF.
+
+Đã sửa:
+1. Không sửa file Word gốc.
+2. Tạo bản DOCX tạm chỉ để render.
+3. Tự tìm preview WMF/EMF của công thức MathType/Equation.
+4. WMF -> SVG -> PNG bằng libwmf + librsvg; có ImageMagick dự phòng.
+5. Thay target preview trong DOCX tạm sang PNG nhưng giữ nguyên vị trí/kích thước shape.
+6. Sau đó mới LibreOffice -> PDF -> cắt ảnh từng câu.
+7. Đổi mã cache nên ảnh render lỗi cũ không được dùng lại khi import lại Word.
+8. Inline formula cũng dùng cùng bộ chuyển vector -> PNG.
+
+Cập nhật lên Render:
+- Bắt buộc thay app.py và Dockerfile.
+- Commit GitHub.
+- Render Deploy latest commit.
+- Vì Dockerfile đổi package hệ thống, lần build này có thể lâu hơn bình thường.
+- Các đề cũ đang lỗi cần TẠO LẠI BÀI KIỂM TRA / import lại Word một lần để sinh ảnh mới.

@@ -1,0 +1,34 @@
+LỚP HỌC ONLINE V8.6 - TỰ CHẤM CHI TIẾT
+
+Đã bổ sung:
+1. Khi học sinh nộp bài:
+   - Hệ thống tự chấm A/B/C/D.
+   - Hệ thống tự chấm trả lời ngắn có đáp án chuẩn.
+   - Hiện điểm tự động.
+   - Hiện số câu đúng / tổng số câu tự chấm.
+
+2. Giáo viên:
+   - Xem từng đáp án học sinh đã chọn.
+   - Với A/B/C/D: hiện cả chữ cái và nội dung phương án.
+   - Xem đáp án đúng và điểm tự động từng câu.
+   - Tự luận vẫn có ô nhập điểm + nhận xét.
+
+3. Cấu hình bài:
+   - “Hiện điểm + số câu đúng sau nộp”.
+   - “Cho học sinh xem đáp án đúng sau khi nộp”.
+   Hai tùy chọn độc lập với nhau.
+
+4. Học sinh:
+   - Nếu giáo viên bật xem đáp án, học sinh được xem lại từng câu Đúng/Sai,
+     bài làm của mình và đáp án đúng.
+   - Nếu giáo viên tắt, học sinh chỉ thấy điểm/số câu đúng (nếu bật hiển thị điểm).
+
+5. Migration:
+   - Tự thêm assignment.show_answers.
+   - Tự thêm submission.correct_count và submission.objective_count.
+   - Không cần xóa Supabase.
+
+CẬP NHẬT ONLINE:
+- Upload mã nguồn V8.6 lên GitHub.
+- Render tự deploy.
+- Giữ nguyên DATABASE_URL/Supabase hiện tại.

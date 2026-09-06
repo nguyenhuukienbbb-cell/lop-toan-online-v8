@@ -1,0 +1,30 @@
+V9.5.2 - TÍCH HỢP BÀI GIẢNG eLEARNING HTML5
+
+Giáo viên:
+- Menu 🎓 eLearning.
+- Upload ZIP HTML5 từ iSpring / Storyline / Captivate.
+- Nhận diện index.html.
+- Nếu có imsmanifest.xml, thử nhận diện file launch của SCORM.
+- Chọn môn, lớp, mô tả, giao/thu hồi.
+- Xem thử, tải ZIP gốc, xóa.
+- Xem tiến độ học sinh.
+
+Học sinh:
+- Thấy bài eLearning trên Trang học tập.
+- Mở bài trong iframe hoặc toàn màn hình.
+- Trạng thái Đang học / Đã hoàn thành.
+- Nút “Đã học xong”.
+
+Lưu trữ:
+- Chỉ lưu nguyên ZIP lên Supabase Storage.
+- Khi mở bài, server tải ZIP về cache /tmp và giải nén an toàn.
+- Không upload hàng trăm file asset lên Supabase.
+
+Bảo mật:
+- Chặn Zip Slip (../).
+- Giới hạn tối đa 6000 file, 700 MB sau giải nén.
+- Asset chỉ phục vụ cho giáo viên sở hữu/Admin hoặc học sinh đúng lớp khi bài đã giao.
+
+Lưu ý:
+- Đây là HTML5 + tracking cơ bản.
+- Chưa ghi nhận chuẩn SCORM API như cmi.core.score / suspend_data.

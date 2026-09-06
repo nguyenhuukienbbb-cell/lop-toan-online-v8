@@ -1,0 +1,19 @@
+V9.4.9 - NGÂN HÀNG CÂU HỎI SIÊU THU GỌN
+
+Mặc định đóng:
+- Nhập từ Word
+- Thêm câu hỏi
+- Xóa vĩnh viễn theo bộ lọc
+- Danh sách câu hỏi
+
+Có thanh truy cập nhanh và nút:
+- Mở tất cả
+- Thu tất cả
+
+Bên trong mỗi khối:
+- input/select thấp hơn
+- khoảng cách nhỏ hơn
+- nút nhỏ hơn
+- chữ hướng dẫn nhỏ hơn
+
+Mục tiêu: vào trang không phải kéo dài, chỉ mở đúng chức năng cần dùng.

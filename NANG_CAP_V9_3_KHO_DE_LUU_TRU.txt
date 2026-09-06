@@ -1,0 +1,22 @@
+V9.3 - KHO ĐỀ LƯU TRỮ
+
+Chức năng mới:
+- Upload nguyên file đề .docx / .doc / .pdf
+- Lưu file trên Supabase Storage khi chạy online
+- Chống file trùng bằng SHA-256
+- Tìm kiếm theo môn, khối, chủ đề, năm học, từ khóa
+- Xem trước PDF / Word khi LibreOffice chuyển được PDF
+- Tải file gốc
+- Xóa file
+- Hiển thị số đề và dung lượng file gốc đã lưu
+- Với .docx: nút Tạo bài kiểm tra, tự import câu hỏi theo chế độ render nguyên câu V9.2.2
+
+Tối ưu dung lượng:
+- PDF dùng chính file gốc để xem trước, không lưu bản PDF thứ hai.
+- File trùng trong kho của một giáo viên bị chặn, không chiếm thêm Storage.
+- Chỉ render công thức/hình thành ảnh khi dùng .docx để tạo bài kiểm tra.
+
+Cập nhật online:
+- Upload toàn bộ source V9.3 lên GitHub, ít nhất app.py + templates/base.html + templates/exam_archive.html.
+- Render Deploy latest commit.
+- Không cần xóa Supabase/database. db.create_all + migration 930 sẽ tạo/cập nhật bảng mới.

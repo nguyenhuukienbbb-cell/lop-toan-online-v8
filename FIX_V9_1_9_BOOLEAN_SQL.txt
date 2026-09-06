@@ -1,0 +1,26 @@
+V9.1.9 - SỬA TOÀN BỘ BOOLEAN SQL CHO POSTGRESQL
+
+Log Render vẫn báo:
+column "perm_classes" is of type boolean but expression is of type integer
+SQL: UPDATE "user" SET perm_classes=1 ...
+
+Nguyên nhân:
+- V9.1.8 vẫn còn sót một số đoạn migration/helper dùng =1 / =0.
+
+V9.1.9 đã:
+- Quét toàn bộ app.py.
+- Đổi mọi SQL permission:
+  =1  -> =TRUE
+  =0  -> =FALSE
+- Kiểm tra tự động để đảm bảo không còn:
+  SET {col}=1
+  SET {col}=0
+  SET perm_classes=1/0
+  và các perm_* khác.
+- Kiểm tra cú pháp Python thành công.
+
+Cập nhật:
+1. Chỉ cần thay app.py bằng app.py V9.1.9 trên GitHub.
+2. Commit changes.
+3. Render > Manual Deploy > Deploy latest commit.
+4. Log mới không được còn dòng SET perm_classes=1.

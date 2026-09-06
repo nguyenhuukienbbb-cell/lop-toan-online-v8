@@ -1,0 +1,19 @@
+LỚP HỌC ONLINE V8.9 - POWERPOINT/PDF/WORD TRONG BÀI GIẢNG
+
+Đã thêm:
+- Giáo viên upload .ppt, .pptx, .pdf, .doc, .docx.
+- Chọn Môn học + Lớp khi tạo bài giảng.
+- File được lưu trên Supabase Storage khi chạy online.
+- PowerPoint/Word được LibreOffice chuyển thành PDF để học sinh xem trực tiếp trên web.
+- PDF được xem trực tiếp bằng iframe.
+- Có nút tải file gốc.
+- Học sinh chỉ truy cập file của bài giảng đã xuất bản đúng lớp của mình.
+- Giáo viên chỉ truy cập bài giảng của mình; Admin truy cập toàn bộ.
+- Chỉ giáo viên được Admin cấp quyền “Bài giảng” mới tạo/xóa bài giảng.
+- Xóa bài giảng sẽ cố gắng xóa cả file đính kèm khỏi Storage.
+- Không cần xóa Supabase database.
+
+Render:
+- Dockerfile V8.9 cài thêm libreoffice-impress để chuyển PowerPoint -> PDF.
+- Giữ nguyên SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_STORAGE_BUCKET.
+- Không đưa service role key lên GitHub.

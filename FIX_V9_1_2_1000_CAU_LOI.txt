@@ -1,0 +1,24 @@
+V9.1.2 - SỬA LỖI 1000/1000 CÂU KHÔNG NẠP ĐƯỢC
+
+Nguyên nhân xác định:
+- Database đã có cột subject.
+- Nhưng class BankQuestion trong app.py chưa khai báo subject.
+- Bộ nạp gọi BankQuestion(subject='Toán' / 'Tin học' / 'Toán tiếng Anh').
+- SQLAlchemy báo subject là tham số không hợp lệ cho từng câu.
+- Kết quả: 0 câu nạp, 1000 câu lỗi.
+
+Đã sửa:
+- Thêm subject = db.Column(db.String(30), default='Toán') vào BankQuestion.
+- Nới domain lên 80 ký tự.
+- Tự kiểm tra / bổ sung cột subject khi khởi động và trước khi nạp.
+- Nạp bằng SAVEPOINT từng câu: một câu lỗi không làm mất cả lô.
+- Nếu còn lỗi, thông báo sẽ hiện lỗi đầu tiên để dễ chẩn đoán.
+- Không xóa dữ liệu cũ.
+- Không cần xóa SQLite hoặc Supabase.
+
+Cập nhật trên máy:
+1. Thay app.py bằng app.py V9.1.2.
+2. Giữ 3 file JSON cạnh app.py.
+3. Tắt Flask.
+4. Chạy lại Flask.
+5. Vào Ngân hàng câu hỏi và bấm Nạp lại.

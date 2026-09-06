@@ -1,0 +1,12 @@
+LỚP HỌC ONLINE V8.7
+
+Thay đổi:
+- Học sinh nộp bài xong KHÔNG thấy điểm.
+- Học sinh KHÔNG thấy số câu đúng / tổng số câu.
+- Hệ thống vẫn tự động chấm trắc nghiệm và lưu điểm cho giáo viên.
+- Giáo viên vẫn xem được:
+  + điểm tự động,
+  + số câu đúng,
+  + từng đáp án học sinh đã chọn.
+- Nếu giáo viên bật “Cho học sinh xem đáp án đúng sau khi nộp”, học sinh vẫn có thể xem đáp án đúng nhưng không thấy điểm.
+- Không cần xóa Supabase.

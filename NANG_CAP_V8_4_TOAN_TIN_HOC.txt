@@ -1,0 +1,14 @@
+LỚP HỌC ONLINE V8.4 - TOÁN + TIN HỌC
+
+Bổ sung:
+- Hệ thống hỗ trợ 2 môn: Toán và Tin học.
+- Khi tạo lớp có thể chọn môn học.
+- Khi tạo bài kiểm tra/bài giảng/ngân hàng câu hỏi có thể chọn môn.
+- Học sinh dùng cùng một tài khoản và thấy bài được giao theo lớp, kèm tên môn.
+- Admin quản lý toàn bộ; giáo viên vẫn chỉ thấy dữ liệu trong phạm vi của mình.
+- Dữ liệu cũ tự mặc định là môn Toán.
+- Không cần xóa Supabase.
+
+Gợi ý:
+- Có thể tạo lớp "6A1 - Toán" và "6A1 - Tin học" nếu muốn tách giáo viên theo môn.
+- Hoặc dùng cùng học sinh/lớp và phân biệt bài theo trường subject.

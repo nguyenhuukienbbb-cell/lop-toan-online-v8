@@ -1,0 +1,22 @@
+V9.1.8 - SỬA POSTGRES BOOLEAN
+
+Lỗi Render:
+psycopg.errors.DatatypeMismatch:
+column "perm_classes" is of type boolean but expression is of type integer
+
+Nguyên nhân:
+- SQLite cho phép ghi 1/0 vào cột BOOLEAN.
+- PostgreSQL/Supabase yêu cầu TRUE/FALSE.
+- Các migration phân quyền cũ dùng SET perm_classes=1 / =0.
+
+Đã sửa:
+- Toàn bộ cập nhật permission dùng TRUE/FALSE.
+- show_answers boolean cũng dùng FALSE.
+- Giữ nguyên database hiện tại.
+- Không xóa học sinh, lớp, đề, điểm hay ngân hàng câu hỏi.
+
+Cách cập nhật:
+1. Thay app.py bằng bản V9.1.8.
+2. Commit lên GitHub.
+3. Render > Manual Deploy > Deploy latest commit.
+4. Trong log không còn DatatypeMismatch boolean/integer.

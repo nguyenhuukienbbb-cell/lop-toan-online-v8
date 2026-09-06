@@ -1,0 +1,15 @@
+V9.4.1 - SỬA value too long for type character varying(10)
+
+Lỗi thực tế:
+psycopg.errors.StringDataRightTruncation: value too long for type character varying(10)
+
+Nguyên nhân:
+- bank_question.correct_answer ở bản cũ là VARCHAR(10).
+- Một số đáp án import Word dài hơn 10 ký tự.
+
+Đã sửa:
+1. Model correct_answer đổi sang TEXT.
+2. Migration 941 tự ALTER COLUMN correct_answer TYPE TEXT trên PostgreSQL/Supabase.
+3. Upload Word gọi ensure_question_bank_loader_schema() trước khi insert.
+4. Không xóa dữ liệu cũ.
+5. Giữ toàn bộ timeout/retry/tăng tốc/OMML/Soạn đề nhanh của các bản trước.

@@ -1,0 +1,18 @@
+V9.3.7 - TỐI ƯU TỐC ĐỘ
+
+1. Xóa câu hỏi đã chọn:
+- Bỏ cách query từng câu.
+- Chỉ dùng vài truy vấn theo lô cho toàn bộ danh sách.
+- Xóa 100–1000 câu nhanh hơn đáng kể.
+
+2. Xóa hết danh sách:
+- Cũng chuyển sang truy vấn theo lô.
+
+3. Import Word / render nguyên câu:
+- Không upload ảnh từng câu nối tiếp nhau nữa.
+- Upload song song tối đa 5 ảnh lên Supabase.
+- PNG dùng compress_level=3 thay optimize=True: giữ nguyên chất lượng hình/công thức nhưng giảm CPU.
+- Giao diện hiện “Đang xử lý đề...” để tránh bấm Upload nhiều lần.
+
+Lưu ý:
+Render Free vẫn có cold-start sau khi ngủ; lần thao tác đầu tiên có thể chậm dù code đã tối ưu.

@@ -1,0 +1,20 @@
+V9.1.4 - SỬA TOÁN TIẾNG ANH Ở PHÂN MÔN HÌNH HỌC
+
+Nguyên nhân:
+- 1.000 câu Toán tiếng Anh trước đây đều có domain = "Math in English".
+- Khi lọc phân môn "Hình học", hệ thống không tìm thấy các câu này.
+
+Đã sửa:
+- Các chủ đề sau được xếp vào Hình học:
+  + Basic geometry
+  + Geometry
+  + Geometry and measurement
+  + Pythagorean theorem
+  + Geometry and circles
+- Các chủ đề Toán tiếng Anh còn lại xếp vào Đại số.
+- Migration V9.1.4 tự sửa các câu đã nạp trước đây.
+- Trong Ngân hàng câu hỏi có thêm nút:
+  "PHÂN LOẠI LẠI ĐẠI SỐ / HÌNH HỌC"
+  để sửa ngay nếu cần.
+- File question_bank_math_english_1000.json cũng đã được phân loại lại.
+- Không cần xóa database và không cần nạp lại 1.000 câu.

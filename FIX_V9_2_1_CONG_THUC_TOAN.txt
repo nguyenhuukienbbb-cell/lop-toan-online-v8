@@ -1,0 +1,15 @@
+BẢN V9.2.1 – SỬA HIỂN THỊ CÔNG THỨC TOÁN / ẢNH NỘI TUYẾN TỪ WORD
+
+Đã sửa:
+1) Công thức/ảnh nội tuyến trích từ file Word không còn gọi trực tiếp /static/uploads.
+   Giờ dùng route /media nên đọc được cả local và Supabase.
+2) Màn hình học sinh làm bài dùng helper media_url() và nhận diện đúng ảnh render Word
+   kể cả khi ảnh đang lưu trên Supabase.
+3) Có thêm dự phòng onerror để không hiện biểu tượng ảnh lỗi trống.
+4) Thử chuyển EMF/WMF sang PNG nếu Pillow đọc được, giúp công thức Word tương thích hơn.
+
+Cách cập nhật:
+- Giải nén đè toàn bộ mã nguồn cũ bằng bản này.
+- Commit/push lại GitHub.
+- Trên Render bấm Manual Deploy -> Deploy latest commit.
+- Nếu đề cũ vẫn lỗi công thức, nên vào tạo lại đề / import lại file Word để hệ thống render ảnh mới.

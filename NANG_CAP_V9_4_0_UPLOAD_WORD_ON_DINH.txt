@@ -1,0 +1,24 @@
+V9.4.0 - SỬA INTERNAL SERVER ERROR KHI UPLOAD WORD
+
+Nguyên nhân chính đã phát hiện:
+- Dockerfile V9.3.9 đặt Gunicorn timeout = 180 giây.
+- Đề 100 câu OMML trên Render Free có thể xử lý lâu hơn 180 giây.
+- Khi quá timeout worker bị kill và trình duyệt hiện Internal Server Error.
+
+Đã sửa:
+1. Gunicorn timeout tăng lên 600 giây.
+2. Upload ảnh Supabase retry tối đa 3 lần.
+3. Giảm upload song song từ 5 xuống 3 để tránh áp lực RAM/CPU trên Render Free.
+4. Route upload Word có try/except:
+   - không còn màn hình trắng 500 với lỗi ứng dụng thông thường;
+   - rollback database nếu lỗi;
+   - ghi log 'UPLOAD WORD FAILED';
+   - quay về Ngân hàng câu hỏi với thông báo lỗi cụ thể.
+5. Xóa file Word tạm sau khi xử lý.
+6. Giữ toàn bộ tối ưu tốc độ và Soạn đề nhanh của V9.3.9.
+
+Cập nhật bắt buộc:
+- app.py
+- Dockerfile
+- templates/question_bank.html
+- templates/edit_assignment.html

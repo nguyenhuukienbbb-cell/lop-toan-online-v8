@@ -1,0 +1,6 @@
+V9.5.0 - THU GỌN PHẦN THÊM CÂU HỎI
+
+- Phần Thêm câu hỏi thủ công mặc định đóng hoàn toàn.
+- Khi cần mới bấm vào tiêu đề để mở.
+- Input/select/textarea được thu thấp hơn.
+- Không đổi logic thêm câu hỏi.

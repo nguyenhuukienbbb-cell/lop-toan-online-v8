@@ -1,0 +1,13 @@
+V9.4.2 - SỬA INTERNAL SERVER ERROR KHI BẤM SOẠN ĐỀ
+
+Lỗi log:
+TypeError: 'BankQuestion' object is not subscriptable
+
+Nguyên nhân:
+- Truy vấn SQLAlchemy query(BankQuestion).all() trả trực tiếp các object BankQuestion.
+- Bản tối ưu cũ lại dùng row[0], gây lỗi 500.
+
+Đã sửa:
+- Dùng trực tiếp danh sách BankQuestion từ JOIN query.
+- Vẫn giữ tối ưu Soạn đề nhanh, không quay lại kiểu N+1 query cũ.
+- Giữ toàn bộ tính năng V9.4.1: OMML, upload Word ổn định, timeout 600s, xóa nhanh, Soạn đề nhanh.

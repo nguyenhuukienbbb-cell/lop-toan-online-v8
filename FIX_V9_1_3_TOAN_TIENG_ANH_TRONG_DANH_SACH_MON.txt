@@ -1,0 +1,13 @@
+V9.1.3 - SỬA DANH SÁCH MÔN HỌC
+
+Đã thêm "Toán tiếng Anh" vào:
+- Tạo bài kiểm tra
+- Chỉnh sửa bài kiểm tra
+- Chọn từ ngân hàng câu hỏi
+- Bộ lọc Ngân hàng câu hỏi
+- Tạo câu hỏi thủ công / nhập Word
+- Lớp học và Bài giảng (nếu có chọn môn)
+
+Không thay đổi database.
+Không cần xóa dữ liệu.
+Chỉ cần cập nhật các file templates tương ứng và app.py, sau đó khởi động lại Flask.

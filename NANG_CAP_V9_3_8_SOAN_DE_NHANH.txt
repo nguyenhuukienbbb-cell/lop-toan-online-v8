@@ -1,0 +1,19 @@
+V9.3.8 - SOẠN ĐỀ NHANH
+
+Nguyên nhân cũ:
+- Trang Soạn đề tự tải ảnh/công thức của toàn bộ câu trong đề.
+- Đề 100 câu có thể tạo hàng trăm request Render -> Supabase.
+- Ngân hàng tải 120 câu mỗi lần.
+- Câu trong đề được lấy bằng nhiều db.session.get().
+
+Đã tối ưu:
+1. Câu trong đề lấy bằng 1 JOIN query.
+2. Ngân hàng chỉ tải tối đa 40 câu mỗi lần.
+3. Không tải ảnh/công thức khi vừa mở trang.
+4. Chỉ khi bấm “Xem hình/công thức” mới tải ảnh của đúng câu đó.
+5. Nội dung ngân hàng dùng chế độ xem nhanh, không tự request ảnh nội tuyến.
+6. Giữ nguyên tất cả chức năng thêm/bỏ câu, import Word, giao bài.
+
+Kết quả mong đợi:
+- Nút Soạn đề mở nhanh hơn nhiều, đặc biệt với đề 50-100 câu.
+- Giảm tải Render Free và Supabase Storage.

@@ -1,0 +1,21 @@
+V9.5.1 - LỌC CÂU HỎI VÀ ĐƯA VÀO BÀI TẬP
+
+Quy trình:
+1. Vào Ngân hàng câu hỏi.
+2. Dùng bộ lọc hiện có:
+   - Môn học
+   - Khối
+   - Phân môn
+   - Chủ đề
+   - Mức độ
+   - Loại câu hỏi
+   - Từ khóa
+3. Mở Danh sách câu hỏi.
+4. Tích các câu cần dùng.
+5. Chọn bài kiểm tra đích.
+6. Bấm “THÊM VÀO BÀI TẬP”.
+
+An toàn:
+- Chỉ thêm câu thuộc giáo viên đang đăng nhập.
+- Câu đã có trong bài sẽ tự bỏ qua, không bị trùng.
+- Không xóa hay thay đổi câu trong Ngân hàng.

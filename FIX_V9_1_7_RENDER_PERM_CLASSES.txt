@@ -1,0 +1,32 @@
+V9.1.7 - SỬA RENDER BOOT FAIL: column user.perm_classes does not exist
+
+Log xác định:
+psycopg.errors.UndefinedColumn: column user.perm_classes does not exist
+
+Nguyên nhân:
+- ORM User của phiên bản mới có các cột perm_*.
+- Supabase cũ chưa có các cột đó.
+- migration_830 dùng User.query trước migration_880/915/916.
+- SQLAlchemy SELECT tất cả cột User và PostgreSQL báo thiếu perm_classes.
+- Gunicorn worker chết, Render báo deploy failed.
+
+Đã sửa:
+1. bootstrap_user_permission_columns() chạy ngay sau db.create_all().
+2. Nó tạo 6 cột trước tất cả migration:
+   perm_classes
+   perm_students
+   perm_question_bank
+   perm_assignments
+   perm_lessons
+   perm_grades
+3. Sau đó mới chạy run_v8_migrations().
+4. migration_830 được đổi sang SQL thô, không phụ thuộc ORM User.
+5. Không xóa Supabase, không xóa dữ liệu.
+
+CẬP NHẬT RENDER:
+- Upload app.py V9.1.7 lên GitHub.
+- Commit changes.
+- Render > Manual Deploy > Deploy latest commit (nếu không Auto Deploy).
+- Trong log cần thấy:
+  BOOTSTRAP permissions: OK
+- Sau đó Gunicorn phải tiếp tục boot, không còn UndefinedColumn perm_classes.

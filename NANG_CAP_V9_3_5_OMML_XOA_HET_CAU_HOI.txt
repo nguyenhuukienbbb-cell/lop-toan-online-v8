@@ -1,0 +1,20 @@
+V9.3.5 - OMML SAFE + XÓA HẾT NGÂN HÀNG CÂU HỎI
+
+1. Tối ưu file Word Equation (OMML):
+- Tự phát hiện m:oMath / m:oMathPara.
+- Với OMML, không mở-save lại bằng python-docx trước khi render.
+- Giữ nguyên package DOCX gốc để LibreOffice render Word Equation.
+- Dòng Đáp án vẫn được che ở bước cắt ảnh câu hỏi.
+- Đổi cache để không dùng lại ảnh render lỗi của bản trước.
+
+2. Xóa hết danh sách câu hỏi:
+- Có nút XÓA HẾT DANH SÁCH ngay trên danh sách câu hỏi.
+- Phải nhập XOA HET và xác nhận lần cuối.
+- Câu chưa dùng: xóa vật lý.
+- Câu đã nằm trong đề hoặc có bài làm: chỉ ẩn khỏi ngân hàng để không phá đề/kết quả cũ.
+- Chỉ tác động câu hỏi thuộc tài khoản giáo viên đang đăng nhập.
+
+Cập nhật Render:
+- Upload toàn bộ source hoặc tối thiểu app.py + templates/question_bank.html.
+- Dockerfile giữ bản V9.3.4 hiện tại.
+- Commit GitHub -> Render Deploy latest commit.

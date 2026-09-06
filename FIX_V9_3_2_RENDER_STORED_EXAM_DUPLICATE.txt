@@ -1,0 +1,24 @@
+V9.3.2 - SỬA LỖI RENDER TẠO BẢNG stored_exam ĐỒNG THỜI
+
+Lỗi đã thấy trên Render:
+psycopg.errors.UniqueViolation: duplicate key value violates unique constraint pg_class_relname_nsp_index
+Key (relname, relnamespace)=(stored_exam_id_seq, ...) already exists
+
+Nguyên nhân:
+Dockerfile chạy Gunicorn 2 workers. Mỗi worker import app.py và cùng chạy db.create_all(), nên hai tiến trình cùng tạo bảng/sequence stored_exam.
+
+Đã sửa:
+1. Dockerfile đổi từ --workers 2 thành --workers 1.
+2. Thêm PostgreSQL advisory lock quanh toàn bộ startup schema/migration.
+3. Không xóa bảng hoặc dữ liệu hiện có.
+
+Cập nhật lên GitHub:
+- Thay app.py
+- Thay Dockerfile
+- Commit
+- Render -> Manual Deploy -> Deploy latest commit
+
+Log thành công sẽ có:
+STARTUP schema lock: acquired
+STARTUP schema/migrations: OK
+STARTUP schema lock: released

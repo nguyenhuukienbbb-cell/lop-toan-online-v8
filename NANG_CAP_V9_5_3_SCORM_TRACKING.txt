@@ -1,0 +1,25 @@
+V9.5.3 - SCORM TRACKING 1.2 + 2004
+
+Hỗ trợ API cầu nối trong trang học:
+- SCORM 1.2: window.API / LMSInitialize, LMSGetValue, LMSSetValue, LMSCommit, LMSFinish...
+- SCORM 2004: window.API_1484_11 / Initialize, GetValue, SetValue, Commit, Terminate...
+
+Tự lưu:
+- lesson_status / completion_status
+- success_status
+- score.raw / min / max / scaled
+- lesson_location / cmi.location
+- suspend_data (học tiếp/resume)
+- session_time / total_time
+- exit / entry
+- các cmi.* khác trong JSON dự phòng
+
+Tự động:
+- Commit khi gói gọi API
+- auto-save mỗi 30 giây
+- sendBeacon khi rời trang
+- đánh dấu hoàn thành khi SCORM báo completed/passed/failed
+
+Giáo viên xem bảng tiến độ có điểm, trạng thái, vị trí, thời gian.
+
+Lưu ý: đây là SCORM runtime bridge thực dụng, chưa phải LMS SCORM certification đầy đủ mọi data model/objective/interactions sequencing của SCORM 2004.

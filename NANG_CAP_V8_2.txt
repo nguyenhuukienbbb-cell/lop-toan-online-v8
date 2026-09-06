@@ -1,0 +1,10 @@
+LỚP TOÁN ONLINE V8.2 - PHÂN QUYỀN GIÁO VIÊN
+
+- Bỏ dòng tài khoản mẫu khỏi trang đăng nhập.
+- Tài khoản giaovien hiện có được nâng thành quyền Quản trị.
+- Quản trị có menu Giáo viên để tạo/reset/xóa tài khoản giáo viên.
+- Giáo viên chỉ thấy lớp của mình, học sinh thuộc lớp của mình, đề/bài giảng/câu hỏi do mình tạo.
+- Khi nâng từ V8.1, migration tự thêm classroom.teacher_id và gán các lớp cũ cho tài khoản quản trị.
+- Không cần xóa Supabase database. Chỉ upload mã nguồn V8.2 lên GitHub và để Render deploy lại.
+
+LƯU Ý: hãy đổi mật khẩu tài khoản quản trị sau khi đăng nhập.

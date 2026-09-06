@@ -1,0 +1,30 @@
+LỚP TOÁN ONLINE V8.3 - TÀI KHOẢN ADMIN RIÊNG
+
+Thay đổi:
+- Có tài khoản Admin riêng để quản lý hệ thống.
+- Tài khoản "giaovien" trở lại quyền Giáo viên.
+- Admin có quyền:
+  + Tạo tài khoản giáo viên
+  + Reset mật khẩu giáo viên
+  + Xóa giáo viên (khi chưa có dữ liệu ràng buộc)
+  + Xem/quản lý toàn bộ lớp và dữ liệu quản trị
+- Giáo viên chỉ quản lý lớp/học sinh/đề/ngân hàng câu hỏi thuộc phạm vi của mình.
+- Trang đăng nhập KHÔNG hiển thị tài khoản/mật khẩu mẫu.
+
+TÀI KHOẢN MẶC ĐỊNH KHI CHƯA CẤU HÌNH BIẾN MÔI TRƯỜNG
+- Admin: admin / 123456
+- Giáo viên: giaovien / 123456
+
+KHUYẾN NGHỊ KHI CHẠY ONLINE
+Trong Render > Environment, thêm:
+DEFAULT_ADMIN_USERNAME=admin
+DEFAULT_ADMIN_PASSWORD=<mật khẩu mạnh của riêng bạn>
+DEFAULT_ADMIN_NAME=Quản trị hệ thống
+
+Sau đó deploy lại.
+Không đưa DEFAULT_ADMIN_PASSWORD lên GitHub.
+
+NÂNG CẤP TỪ V8.2
+- Không cần xóa Supabase.
+- Upload app.py mới và các file template nếu có thay đổi.
+- Migration 830 tự tạo Admin riêng và chuyển "giaovien" về quyền teacher.

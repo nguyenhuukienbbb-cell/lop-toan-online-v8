@@ -1,0 +1,23 @@
+V9.1.1 - SỬA LỖI NẠP NGÂN HÀNG CÂU HỎI
+
+Đã sửa route:
+- /teacher/question-bank/load-1000
+- /teacher/question-bank/load-math-english-1000
+- /teacher/question-bank/load-it-1000
+
+Cải tiến:
+- Tự kiểm tra cột subject trước khi nạp.
+- Kiểm tra quyền Ngân hàng câu hỏi.
+- Nạp theo lô 100 câu.
+- Không nạp trùng khi bấm lại.
+- Nếu có lỗi, chuyển về trang Ngân hàng câu hỏi và hiện thông báo thay vì HTTP 500.
+- Không xóa dữ liệu cũ.
+- Không cần xóa SQLite hoặc Supabase.
+
+Cập nhật nhanh trên máy đang chạy:
+1. Thay app.py.
+2. Đảm bảo 3 file JSON vẫn nằm cùng thư mục app.py:
+   question_bank_1000.json
+   question_bank_it_1000.json
+   question_bank_math_english_1000.json
+3. Tắt Flask và chạy lại.

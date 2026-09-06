@@ -1,0 +1,14 @@
+V9.4.8 - GIAO DIỆN NGÂN HÀNG CÂU HỎI THU GỌN
+
+Mục tiêu: không phải kéo trang dài để tìm chức năng.
+
+Đã đổi:
+- Nhập từ Word -> khối thu gọn, mặc định đóng.
+- Thêm câu hỏi -> khối thu gọn, mặc định đóng.
+- Xóa vĩnh viễn theo bộ lọc -> khối thu gọn, mặc định đóng.
+- Danh sách câu hỏi vẫn hiện ngay.
+- Có thanh truy cập nhanh cố định:
+  Danh sách | Nhập Word | Thêm câu | Xóa theo lọc.
+- Khi cần chức năng nào chỉ bấm thanh đó để mở.
+
+Không thay đổi chức năng hay dữ liệu.

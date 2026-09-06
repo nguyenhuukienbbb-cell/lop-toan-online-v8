@@ -1,0 +1,25 @@
+LỚP HỌC ONLINE V8.8 - PHÂN QUYỀN GIÁO VIÊN
+
+Admin có thể cấp hoặc thu hồi 6 nhóm quyền cho từng giáo viên:
+- Quản lý lớp
+- Quản lý học sinh
+- Ngân hàng câu hỏi
+- Tạo / giao bài kiểm tra
+- Bài giảng
+- Xem / chấm điểm
+
+Cách dùng:
+1. Đăng nhập Admin.
+2. Vào menu Giáo viên.
+3. Tích/bỏ tích quyền của từng giáo viên.
+4. Bấm "Lưu phân quyền".
+
+Bảo vệ:
+- Menu không có quyền sẽ bị ẩn.
+- Nếu giáo viên nhập URL trực tiếp, backend vẫn chặn.
+- Admin luôn có toàn bộ quyền.
+
+Dữ liệu:
+- Không cần xóa Supabase.
+- Migration V8.8 tự thêm các cột quyền.
+- Giáo viên cũ mặc định vẫn được giữ toàn bộ quyền để tránh gián đoạn.

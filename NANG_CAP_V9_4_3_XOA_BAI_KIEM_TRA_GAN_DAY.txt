@@ -1,0 +1,13 @@
+V9.4.3 - XÓA BÀI KIỂM TRA GẦN ĐÂY
+
+Đã thêm nút “🗑 Xóa” ở từng dòng trong bảng Bài kiểm tra gần đây.
+
+Khi xóa:
+- Xóa Assignment.
+- Xóa liên kết với lớp.
+- Xóa liên kết câu hỏi trong đề.
+- Xóa các lượt làm / câu trả lời / kết quả thuộc riêng bài đó.
+- KHÔNG xóa BankQuestion gốc trong Ngân hàng câu hỏi.
+
+Có hộp xác nhận trước khi xóa.
+Chỉ giáo viên tạo bài đó mới được phép xóa.

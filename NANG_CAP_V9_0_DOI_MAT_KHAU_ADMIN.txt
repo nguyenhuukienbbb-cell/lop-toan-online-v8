@@ -1,0 +1,19 @@
+LỚP HỌC ONLINE V9.0 - ĐỔI MẬT KHẨU ADMIN
+
+Đã thêm:
+- Menu "Đổi mật khẩu Admin".
+- Chỉ tài khoản role=admin mới truy cập được.
+- Yêu cầu nhập:
+  + Mật khẩu hiện tại
+  + Mật khẩu mới
+  + Xác nhận mật khẩu mới
+- Kiểm tra mật khẩu hiện tại trước khi đổi.
+- Mật khẩu mới tối thiểu 8 ký tự.
+- Mật khẩu mới phải khác mật khẩu hiện tại.
+- Mật khẩu được lưu bằng generate_password_hash, không lưu dạng chữ thường.
+- Có tùy chọn hiện/ẩn mật khẩu khi nhập.
+- Không cần thay đổi hoặc xóa Supabase.
+
+Lưu ý:
+- Sau khi đổi mật khẩu trong giao diện, giá trị DEFAULT_ADMIN_PASSWORD trên Render không tự thay đổi.
+- Tài khoản Admin đã tồn tại trong database sẽ dùng mật khẩu mới trong database.

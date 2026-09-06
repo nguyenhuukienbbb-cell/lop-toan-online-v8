@@ -1,0 +1,17 @@
+V9.3.3 - SỬA KHO ĐỀ LÀM MẤT CÔNG THỨC KHI XEM TRƯỚC WORD
+
+Nguyên nhân:
+- Kho đề V9.3.0-9.3.2 tự chuyển DOC/DOCX sang PDF bằng LibreOffice trên Render.
+- Một số MathType / Equation / OLE không được LibreOffice render đúng, nên PDF xem trước bị mất công thức dù file Word gốc vẫn còn nguyên.
+
+Đã sửa:
+- DOC/DOCX chỉ lưu file gốc trên Supabase, không tự tạo PDF preview nữa.
+- PDF gốc vẫn xem trực tiếp.
+- Các preview Word cũ nếu bấm vào sẽ trả file Word gốc thay vì bản PDF sai.
+- Nút giao diện ghi rõ Mở/Tải Word gốc.
+- Không xóa dữ liệu cũ.
+
+Cập nhật tối thiểu:
+- app.py
+- templates/exam_archive.html
+Sau đó commit GitHub và Render Deploy latest commit.

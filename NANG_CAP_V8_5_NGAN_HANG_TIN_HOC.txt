@@ -1,0 +1,16 @@
+LỚP HỌC ONLINE V8.5 - NGÂN HÀNG TIN HỌC
+
+- Thêm gói 1.000 câu Tin học lớp 6–9 (250 câu/khối).
+- Mỗi khối: 180 câu A/B/C/D, 40 câu trả lời ngắn, 30 câu tự luận.
+- Có mức Dễ / Trung bình / Khó.
+- Nhóm nội dung:
+  + Máy tính & mạng
+  + Dữ liệu & ứng dụng
+  + Thuật toán & lập trình
+  + An toàn số
+- Ngân hàng có bộ lọc Môn học, Khối, Loại câu, Độ khó, Nhóm nội dung, Chủ đề.
+- Tạo đề tự động của bài Tin học chỉ lấy câu có subject = Tin học.
+- Dữ liệu Toán cũ không bị ảnh hưởng.
+
+Lưu ý: Bộ 1.000 câu là ngân hàng khởi đầu do hệ thống tạo, không sao chép nguyên văn từ sách giáo khoa.
+Nên giáo viên rà soát câu chữ/độ khó trước khi dùng cho kiểm tra chính thức.

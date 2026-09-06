@@ -1,0 +1,30 @@
+V9.1.6 - SỬA DỨT ĐIỂM MODEL PHÂN QUYỀN GIÁO VIÊN
+
+Nguyên nhân tìm thấy trong mã V9.1.5:
+- Database có các cột:
+  perm_classes
+  perm_students
+  perm_question_bank
+  perm_assignments
+  perm_lessons
+  perm_grades
+- Nhưng class User trong app.py KHÔNG khai báo 6 thuộc tính trên.
+- Route tạo giáo viên lại truyền các tham số perm_* vào User(...).
+- Điều này có thể làm /admin/teachers hoặc thao tác tạo giáo viên lỗi.
+
+V9.1.6 đã sửa:
+- Thêm đủ 6 cột permission vào class User.
+- Tự đồng bộ database khi khởi động.
+- Tạo tài khoản giáo viên an toàn hơn.
+- Lưu phân quyền có bắt lỗi.
+- Nếu còn lỗi ở /admin/teachers, trang sẽ hiển thị “Chi tiết lỗi” thay vì Internal Server Error trắng.
+
+Cách cập nhật:
+1. Thay app.py.
+2. Thêm templates/admin_teachers_error.html.
+3. Giữ templates/admin_teachers.html của bản mới.
+4. Tắt Flask hoàn toàn.
+5. Chạy lại Flask.
+6. Đăng nhập Admin và mở Quản lý giáo viên.
+
+Không xóa database.

@@ -1,0 +1,23 @@
+V9.4.5 - XÓA VĨNH VIỄN NGÂN HÀNG THEO BỘ LỌC
+
+Có thể lọc theo:
+- Môn học
+- Khối
+- Phân môn / nhóm nội dung
+- Mức độ
+- Loại câu hỏi
+- Chủ đề
+- Từ khóa
+
+Sau đó bấm “XÓA VĨNH VIỄN THEO BỘ LỌC”.
+
+Bảo vệ:
+- Phải tích xác nhận.
+- Phải nhập đúng XOA VINH VIEN.
+- Chỉ xóa câu hỏi của tài khoản giáo viên đang đăng nhập.
+
+Khi xóa vĩnh viễn:
+- Xóa BankQuestion.
+- Xóa AssignmentQuestion liên quan.
+- Xóa Answer liên quan.
+- Không xóa Assignment hay Submission.

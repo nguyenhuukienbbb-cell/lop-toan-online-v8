@@ -1,0 +1,18 @@
+V9.2.2 - CHẾ ĐỘ RENDER NGUYÊN CÂU TỪ WORD
+
+Đã bật mặc định cơ chế nhập Word theo kiểu render nguyên câu.
+Bạn chỉ cần chọn file Word và nhập như trước, không cần thao tác thêm.
+
+Ưu điểm:
+- Giữ nguyên công thức toán học
+- Giữ nguyên hình minh họa/hình học
+- Giữ nguyên bố cục Word
+- Trắc nghiệm vẫn tự chấm A/B/C/D
+
+Áp dụng cho:
+- Nhập vào Ngân hàng câu hỏi
+- Nhập trực tiếp vào Đề
+- Nhập file mẫu
+
+Lưu ý:
+- Với các đề cũ đã nhập từ trước và đang lỗi công thức, nên import lại file Word gốc một lần sau khi nâng cấp.

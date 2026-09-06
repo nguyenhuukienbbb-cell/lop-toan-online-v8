@@ -1,0 +1,14 @@
+V9.4.7 - THU GỌN NHẬP WORD + THÊM CÂU HỎI
+
+Đã thu gọn 2 khung:
+- Nhập từ Word
+- Thêm câu hỏi
+
+Thay đổi:
+- Giảm padding card
+- Input/select thấp hơn
+- Khoảng cách giữa các dòng nhỏ hơn
+- Textarea thấp hơn
+- Nút nhỏ hơn
+- Rút gọn phần hướng dẫn
+- Không thay đổi chức năng

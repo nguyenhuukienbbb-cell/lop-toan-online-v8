@@ -12,7 +12,7 @@ from authlib.integrations.flask_client import OAuth
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from io import BytesIO
-import os, re, random, uuid, json, hashlib, subprocess, tempfile, shutil, platform, unicodedata, time
+import os, re, random, uuid, json, hashlib, subprocess, tempfile, shutil, platform, unicodedata, time, mimetypes
 from urllib.parse import quote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
@@ -54,12 +54,14 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['STATIC_UPLOAD_FOLDER'] = 'static/uploads'
 app.config['LESSON_UPLOAD_FOLDER'] = 'uploads/lessons'
+app.config['ELEARNING_CACHE_FOLDER'] = os.path.join(tempfile.gettempdir(), 'lop_hoc_online_elearning')
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '').rstrip('/')
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '').strip()
 SUPABASE_STORAGE_BUCKET = os.environ.get('SUPABASE_STORAGE_BUCKET', 'lop-toan-media').strip() or 'lop-toan-media'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['STATIC_UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['LESSON_UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['ELEARNING_CACHE_FOLDER'], exist_ok=True)
 db = SQLAlchemy(app)
 
 oauth = OAuth(app)
@@ -118,6 +120,52 @@ class Lesson(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     is_published = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ELearningPackage(db.Model):
+    """Gói bài giảng HTML5/eLearning lưu nguyên ZIP trong Storage."""
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(220), nullable=False)
+    subject = db.Column(db.String(30), default='Toán')
+    description = db.Column(db.Text, default='')
+    classroom_id = db.Column(db.Integer, db.ForeignKey('classroom.id'), nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    zip_name = db.Column(db.String(255), nullable=False)
+    zip_path = db.Column(db.String(500), nullable=False)
+    entrypoint = db.Column(db.String(500), default='index.html')
+    package_type = db.Column(db.String(30), default='HTML5')
+    sha256 = db.Column(db.String(64), nullable=False)
+    file_size = db.Column(db.Integer, default=0)
+    is_published = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class ELearningProgress(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    package_id = db.Column(db.Integer, db.ForeignKey('e_learning_package.id'), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    status = db.Column(db.String(20), default='started')  # started / completed
+    opened_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_seen_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    # SCORM tracking (1.2 + 2004)
+    scorm_version = db.Column(db.String(20), default='')
+    lesson_status = db.Column(db.String(30), default='')
+    completion_status = db.Column(db.String(30), default='')
+    success_status = db.Column(db.String(30), default='')
+    score_raw = db.Column(db.Float, nullable=True)
+    score_min = db.Column(db.Float, nullable=True)
+    score_max = db.Column(db.Float, nullable=True)
+    score_scaled = db.Column(db.Float, nullable=True)
+    lesson_location = db.Column(db.Text, default='')
+    suspend_data = db.Column(db.Text, default='')
+    session_time = db.Column(db.String(80), default='')
+    total_time = db.Column(db.String(80), default='')
+    exit_value = db.Column(db.String(40), default='')
+    entry_value = db.Column(db.String(40), default='')
+    scorm_data = db.Column(db.Text, default='{}')
+    __table_args__ = (
+        db.UniqueConstraint('package_id', 'student_id', name='uq_elearning_package_student'),
+    )
 
 class StoredExam(db.Model):
     """Kho đề gốc của giáo viên. File nằm ở Supabase Storage/local; DB chỉ giữ metadata."""
@@ -511,6 +559,157 @@ def delete_lesson_storage(stored_path):
                 os.remove(p)
     except Exception:
         pass
+
+
+ELEARNING_ALLOWED_EXTENSIONS = {'.zip'}
+ELEARNING_MAX_FILES = 6000
+ELEARNING_MAX_UNCOMPRESSED = 700 * 1024 * 1024  # 700 MB sau giải nén
+
+def _safe_zip_member_name(name):
+    name = (name or '').replace('\\', '/').lstrip('/')
+    if not name or name.endswith('/'):
+        return name
+    parts = [p for p in name.split('/') if p not in ('', '.')]
+    if any(p == '..' for p in parts):
+        return ''
+    return '/'.join(parts)
+
+def inspect_elearning_zip(raw):
+    """Kiểm tra ZIP và tìm file khởi chạy.
+
+    Ưu tiên SCORM imsmanifest.xml nếu có; nếu không thì index.html rồi HTML đầu tiên.
+    """
+    try:
+        zf = zipfile.ZipFile(BytesIO(raw))
+    except Exception as e:
+        raise RuntimeError('File ZIP không hợp lệ: ' + str(e)[:140])
+
+    infos = zf.infolist()
+    if not infos:
+        raise RuntimeError('Gói eLearning rỗng.')
+    if len(infos) > ELEARNING_MAX_FILES:
+        raise RuntimeError(f'Gói có quá nhiều file ({len(infos)}). Giới hạn {ELEARNING_MAX_FILES} file.')
+
+    total_uncompressed = sum(max(0, x.file_size) for x in infos)
+    if total_uncompressed > ELEARNING_MAX_UNCOMPRESSED:
+        raise RuntimeError('Dung lượng sau giải nén quá lớn (>700 MB).')
+
+    safe_names = []
+    name_map = {}
+    for info in infos:
+        safe = _safe_zip_member_name(info.filename)
+        if not safe and not info.is_dir():
+            raise RuntimeError('Gói ZIP chứa đường dẫn không an toàn.')
+        if safe:
+            safe_names.append(safe)
+            name_map[safe.lower()] = safe
+
+    package_type = 'HTML5'
+    entrypoint = ''
+
+    # SCORM manifest: cố lấy href từ resource.
+    manifest_name = next((n for n in safe_names if n.lower().endswith('imsmanifest.xml')), None)
+    if manifest_name:
+        package_type = 'SCORM/HTML5'
+        try:
+            root = ET.fromstring(zf.read(manifest_name))
+            manifest_dir = os.path.dirname(manifest_name).replace('\\', '/')
+            resources = [el for el in root.iter() if str(el.tag).lower().endswith('resource')]
+            for res in resources:
+                href = (res.attrib.get('href') or '').strip()
+                if href:
+                    candidate = '/'.join(x for x in [manifest_dir, href] if x)
+                    candidate = _safe_zip_member_name(candidate)
+                    if candidate and candidate.lower() in name_map:
+                        entrypoint = name_map[candidate.lower()]
+                        break
+        except Exception:
+            pass
+
+    if not entrypoint:
+        index_candidates = [n for n in safe_names if os.path.basename(n).lower() in ('index.html', 'index.htm')]
+        if index_candidates:
+            entrypoint = sorted(index_candidates, key=lambda x: (x.count('/'), len(x)))[0]
+
+    if not entrypoint:
+        html_candidates = [n for n in safe_names if n.lower().endswith(('.html', '.htm'))]
+        if html_candidates:
+            entrypoint = sorted(html_candidates, key=lambda x: (x.count('/'), len(x)))[0]
+
+    if not entrypoint:
+        raise RuntimeError('Không tìm thấy index.html hoặc file HTML khởi chạy trong gói ZIP.')
+
+    return {
+        'entrypoint': entrypoint,
+        'package_type': package_type,
+        'file_count': len(infos),
+        'uncompressed_size': total_uncompressed,
+    }
+
+def elearning_access_allowed(pkg):
+    if not pkg or not me():
+        return False
+    u = me()
+    if u.role == 'admin':
+        return True
+    if u.role == 'teacher':
+        return pkg.created_by == u.id
+    if u.role == 'student':
+        return bool(pkg.is_published and u.classroom_id and pkg.classroom_id == u.classroom_id)
+    return False
+
+def _elearning_cache_dir(pkg):
+    safe_hash = (pkg.sha256 or 'nohash')[:16]
+    return os.path.join(app.config['ELEARNING_CACHE_FOLDER'], f'{pkg.id}_{safe_hash}')
+
+def ensure_elearning_extracted(pkg):
+    """Tải ZIP từ Storage và giải nén an toàn vào cache /tmp của Render."""
+    cache_dir = _elearning_cache_dir(pkg)
+    marker = os.path.join(cache_dir, '.ready')
+    entry_abs = os.path.realpath(os.path.join(cache_dir, pkg.entrypoint))
+
+    if os.path.exists(marker) and os.path.isfile(entry_abs):
+        return cache_dir
+
+    raw = read_lesson_bytes(pkg.zip_path)
+    if raw is None:
+        raise RuntimeError('Không tải được gói eLearning từ kho lưu trữ.')
+
+    meta = inspect_elearning_zip(raw)
+    os.makedirs(cache_dir, exist_ok=True)
+
+    # Nếu cache dở dang, dọn trước.
+    for name in os.listdir(cache_dir):
+        p = os.path.join(cache_dir, name)
+        try:
+            if os.path.isdir(p):
+                shutil.rmtree(p)
+            else:
+                os.remove(p)
+        except Exception:
+            pass
+
+    with zipfile.ZipFile(BytesIO(raw)) as zf:
+        for info in zf.infolist():
+            safe = _safe_zip_member_name(info.filename)
+            if not safe:
+                continue
+            target = os.path.realpath(os.path.join(cache_dir, safe))
+            root_real = os.path.realpath(cache_dir)
+            if not (target == root_real or target.startswith(root_real + os.sep)):
+                raise RuntimeError('Phát hiện đường dẫn ZIP không an toàn.')
+            if info.is_dir():
+                os.makedirs(target, exist_ok=True)
+                continue
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with zf.open(info) as srcf, open(target, 'wb') as outf:
+                shutil.copyfileobj(srcf, outf)
+
+    Path(marker).write_text(meta['entrypoint'], encoding='utf-8')
+    return cache_dir
+
+def elearning_progress_for(pkg_id, student_id):
+    return ELearningProgress.query.filter_by(package_id=pkg_id, student_id=student_id).first()
 
 def convert_office_to_pdf_bytes(original_bytes, filename):
     """PowerPoint/Word -> PDF bằng LibreOffice. PDF đầu vào được giữ nguyên."""
@@ -2120,6 +2319,155 @@ def exam_archive_create_assignment(item_id):
     return redirect(url_for('edit_assignment', assignment_id=a.id))
 
 
+
+@app.route('/teacher/elearning', methods=['GET', 'POST'])
+def teacher_elearning():
+    if not require_perm('lessons'):
+        flash('Bạn chưa được cấp quyền Bài giảng.', 'error')
+        return redirect(url_for('teacher_dashboard'))
+    if not teacher_only():
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        upload = request.files.get('elearning_zip')
+        if not upload or not upload.filename or not upload.filename.lower().endswith('.zip'):
+            flash('Hãy chọn gói eLearning .zip.', 'error')
+            return redirect(url_for('teacher_elearning'))
+
+        try:
+            classroom_id = int(request.form.get('classroom_id', '0') or 0)
+        except Exception:
+            classroom_id = 0
+        if classroom_id not in accessible_class_ids():
+            flash('Bạn không có quyền giao bài cho lớp này.', 'error')
+            return redirect(url_for('teacher_elearning'))
+
+        raw = upload.read()
+        if not raw:
+            flash('File ZIP rỗng hoặc không đọc được.', 'error')
+            return redirect(url_for('teacher_elearning'))
+
+        try:
+            meta = inspect_elearning_zip(raw)
+            digest = hashlib.sha256(raw).hexdigest()
+
+            duplicate = ELearningPackage.query.filter_by(
+                created_by=me().id, sha256=digest
+            ).first()
+            if duplicate:
+                flash('Gói eLearning này đã được tải lên trước đó.', 'error')
+                return redirect(url_for('teacher_elearning'))
+
+            original_name = secure_filename(upload.filename) or 'elearning.zip'
+            storage_key = f'elearning/{me().id}/{uuid.uuid4().hex}.zip'
+            stored = save_lesson_bytes(raw, storage_key, 'application/zip')
+
+            pkg = ELearningPackage(
+                title=(request.form.get('title') or os.path.splitext(original_name)[0]).strip() or 'Bài giảng eLearning',
+                subject=(request.form.get('subject') or 'Toán').strip() or 'Toán',
+                description=(request.form.get('description') or '').strip(),
+                classroom_id=classroom_id,
+                created_by=me().id,
+                zip_name=original_name,
+                zip_path=stored,
+                entrypoint=meta['entrypoint'],
+                package_type=meta['package_type'],
+                sha256=digest,
+                file_size=len(raw),
+                is_published=bool(request.form.get('is_published')),
+            )
+            db.session.add(pkg)
+            db.session.commit()
+            flash(
+                f'Đã tải gói eLearning: {meta["package_type"]}, '
+                f'{meta["file_count"]} file. File chạy: {meta["entrypoint"]}.',
+                'ok'
+            )
+        except Exception as e:
+            db.session.rollback()
+            app.logger.exception('ELEARNING UPLOAD FAILED')
+            flash('Không thể tải gói eLearning: ' + str(e)[:240], 'error')
+
+        return redirect(url_for('teacher_elearning'))
+
+    packages = ELearningPackage.query.filter_by(created_by=me().id).order_by(ELearningPackage.id.desc()).all()
+    stats = {}
+    for pkg in packages:
+        progress_rows = ELearningProgress.query.filter_by(package_id=pkg.id).all()
+        stats[pkg.id] = {
+            'started': sum(1 for x in progress_rows if x.status == 'started'),
+            'completed': sum(1 for x in progress_rows if x.status == 'completed'),
+            'total': len(progress_rows),
+        }
+
+    return render_template(
+        'elearning_teacher.html',
+        packages=packages,
+        classes=accessible_classes(),
+        stats=stats
+    )
+
+@app.route('/teacher/elearning/<int:pid>/toggle-publish', methods=['POST'])
+def teacher_elearning_toggle_publish(pid):
+    if not require_perm('lessons') or not teacher_only():
+        return redirect(url_for('login'))
+    pkg = db.session.get(ELearningPackage, pid)
+    if not pkg or (me().role != 'admin' and pkg.created_by != me().id):
+        return 'Không có quyền', 403
+    pkg.is_published = not bool(pkg.is_published)
+    db.session.commit()
+    flash('Đã cập nhật trạng thái giao bài eLearning.', 'ok')
+    return redirect(url_for('teacher_elearning'))
+
+@app.route('/teacher/elearning/<int:pid>/delete', methods=['POST'])
+def teacher_elearning_delete(pid):
+    if not require_perm('lessons') or not teacher_only():
+        return redirect(url_for('login'))
+    pkg = db.session.get(ELearningPackage, pid)
+    if not pkg or (me().role != 'admin' and pkg.created_by != me().id):
+        return 'Không có quyền', 403
+    try:
+        ELearningProgress.query.filter_by(package_id=pkg.id).delete(synchronize_session=False)
+        delete_lesson_storage(pkg.zip_path)
+        cache_dir = _elearning_cache_dir(pkg)
+        if os.path.isdir(cache_dir):
+            shutil.rmtree(cache_dir, ignore_errors=True)
+        db.session.delete(pkg)
+        db.session.commit()
+        flash('Đã xóa gói eLearning.', 'ok')
+    except Exception as e:
+        db.session.rollback()
+        flash('Không thể xóa gói eLearning: ' + str(e)[:180], 'error')
+    return redirect(url_for('teacher_elearning'))
+
+@app.route('/teacher/elearning/<int:pid>/progress')
+def teacher_elearning_progress(pid):
+    if not require_perm('lessons') or not teacher_only():
+        return redirect(url_for('login'))
+    pkg = db.session.get(ELearningPackage, pid)
+    if not pkg or (me().role != 'admin' and pkg.created_by != me().id):
+        return 'Không có quyền', 403
+    rows = (
+        db.session.query(ELearningProgress, User)
+        .join(User, User.id == ELearningProgress.student_id)
+        .filter(ELearningProgress.package_id == pkg.id)
+        .order_by(User.full_name)
+        .all()
+    )
+    return render_template('elearning_progress.html', package=pkg, rows=rows)
+
+@app.route('/teacher/elearning/<int:pid>/download')
+def teacher_elearning_download(pid):
+    if not require_perm('lessons') or not teacher_only():
+        return redirect(url_for('login'))
+    pkg = db.session.get(ELearningPackage, pid)
+    if not pkg or (me().role != 'admin' and pkg.created_by != me().id):
+        return 'Không có quyền', 403
+    raw = read_lesson_bytes(pkg.zip_path)
+    if raw is None:
+        return 'File không còn tồn tại.', 404
+    return send_file(BytesIO(raw), mimetype='application/zip', as_attachment=True, download_name=pkg.zip_name)
+
 @app.route('/teacher/lessons', methods=['GET', 'POST'])
 def lessons():
     if not require_perm('lessons'):
@@ -3166,10 +3514,20 @@ def student_dashboard():
         ids = [x.assignment_id for x in AssignmentClassroom.query.filter_by(classroom_id=u.classroom_id).all()]
         assignments = Assignment.query.filter(Assignment.id.in_(ids), Assignment.is_published == True).order_by(Assignment.id.desc()).all() if ids else []
         lessons = Lesson.query.filter_by(classroom_id=u.classroom_id, is_published=True).order_by(Lesson.id.desc()).all()
+        elearning_packages = ELearningPackage.query.filter_by(
+            classroom_id=u.classroom_id, is_published=True
+        ).order_by(ELearningPackage.id.desc()).all()
     else:
-        assignments = []; lessons = []
+        assignments = []; lessons = []; elearning_packages = []
     subs = {s.assignment_id: s for s in Submission.query.filter_by(student_id=u.id).all()}
-    return render_template('student_dashboard.html', classroom=c, assignments=assignments, lessons=lessons, subs=subs)
+    elearning_progress = {
+        p.package_id: p for p in ELearningProgress.query.filter_by(student_id=u.id).all()
+    }
+    return render_template(
+        'student_dashboard.html',
+        classroom=c, assignments=assignments, lessons=lessons, subs=subs,
+        elearning_packages=elearning_packages, elearning_progress=elearning_progress
+    )
 
 @app.route('/student/lesson/<int:lid>')
 def student_lesson(lid):
@@ -3202,6 +3560,228 @@ def lesson_file(lid, kind):
     if data is None:
         return 'File không còn tồn tại hoặc kho lưu trữ chưa kết nối.', 404
     return send_file(BytesIO(data), mimetype=mimetype, as_attachment=as_attachment, download_name=download_name)
+
+
+def _safe_float(v):
+    try:
+        if v is None or str(v).strip() == '':
+            return None
+        return float(v)
+    except Exception:
+        return None
+
+
+def _scorm_progress_payload(progress, student):
+    try:
+        extra = json.loads(progress.scorm_data or '{}')
+        if not isinstance(extra, dict):
+            extra = {}
+    except Exception:
+        extra = {}
+    return {
+        'student_id': str(student.id),
+        'student_name': student.full_name or student.username,
+        'scorm_version': progress.scorm_version or '',
+        'lesson_status': progress.lesson_status or '',
+        'completion_status': progress.completion_status or '',
+        'success_status': progress.success_status or '',
+        'score_raw': progress.score_raw,
+        'score_min': progress.score_min,
+        'score_max': progress.score_max,
+        'score_scaled': progress.score_scaled,
+        'lesson_location': progress.lesson_location or '',
+        'suspend_data': progress.suspend_data or '',
+        'session_time': progress.session_time or '',
+        'total_time': progress.total_time or '',
+        'exit_value': progress.exit_value or '',
+        'entry_value': progress.entry_value or ('resume' if progress.suspend_data else 'ab-initio'),
+        'extra': extra,
+    }
+
+
+def _apply_scorm_tracking(progress, data):
+    """Lưu các field SCORM thường dùng; field khác được giữ trong scorm_data JSON."""
+    now = local_now()
+    progress.last_seen_at = now
+    version = str(data.get('scorm_version') or progress.scorm_version or '').strip()[:20]
+    if version:
+        progress.scorm_version = version
+
+    text_fields = {
+        'lesson_status': 30,
+        'completion_status': 30,
+        'success_status': 30,
+        'lesson_location': None,
+        'suspend_data': None,
+        'session_time': 80,
+        'total_time': 80,
+        'exit_value': 40,
+        'entry_value': 40,
+    }
+    for key, limit in text_fields.items():
+        if key in data and data.get(key) is not None:
+            val = str(data.get(key))
+            if limit: val = val[:limit]
+            setattr(progress, key, val)
+
+    for key in ('score_raw','score_min','score_max','score_scaled'):
+        if key in data:
+            val = _safe_float(data.get(key))
+            if val is not None:
+                setattr(progress, key, val)
+
+    extra = data.get('extra')
+    if isinstance(extra, dict):
+        # bound size to keep DB sane; suspend_data is already stored separately.
+        try:
+            raw = json.dumps(extra, ensure_ascii=False)
+            progress.scorm_data = raw[:200000]
+        except Exception:
+            pass
+
+    ls = (progress.lesson_status or '').lower()
+    cs = (progress.completion_status or '').lower()
+    if ls in ('completed','passed','failed') or cs == 'completed':
+        progress.status = 'completed'
+        if not progress.completed_at:
+            progress.completed_at = now
+    else:
+        progress.status = 'started'
+
+
+@app.route('/student/elearning/<int:pid>')
+def student_elearning(pid):
+    if not student_only():
+        return redirect(url_for('login'))
+    pkg = db.session.get(ELearningPackage, pid)
+    if not elearning_access_allowed(pkg):
+        return 'Không có quyền', 403
+
+    progress = elearning_progress_for(pkg.id, me().id)
+    now = local_now()
+    if not progress:
+        progress = ELearningProgress(
+            package_id=pkg.id,
+            student_id=me().id,
+            status='started',
+            opened_at=now,
+            last_seen_at=now,
+        )
+        db.session.add(progress)
+    else:
+        progress.last_seen_at = now
+        if progress.status not in ('started', 'completed'):
+            progress.status = 'started'
+    db.session.commit()
+
+    return render_template(
+        'elearning_player.html', package=pkg, progress=progress,
+        scorm_state=_scorm_progress_payload(progress, me())
+    )
+
+@app.route('/student/elearning/<int:pid>/scorm-state')
+def student_elearning_scorm_state(pid):
+    if not student_only():
+        return {'ok': False}, 401
+    pkg = db.session.get(ELearningPackage, pid)
+    if not elearning_access_allowed(pkg):
+        return {'ok': False}, 403
+    progress = elearning_progress_for(pkg.id, me().id)
+    if not progress:
+        now = local_now()
+        progress = ELearningProgress(package_id=pkg.id, student_id=me().id,
+                                     status='started', opened_at=now, last_seen_at=now)
+        db.session.add(progress); db.session.commit()
+    return {'ok': True, 'state': _scorm_progress_payload(progress, me())}
+
+
+@app.route('/student/elearning/<int:pid>/scorm-commit', methods=['POST'])
+def student_elearning_scorm_commit(pid):
+    if not student_only():
+        return {'ok': False, 'error': 'login'}, 401
+    pkg = db.session.get(ELearningPackage, pid)
+    if not elearning_access_allowed(pkg):
+        return {'ok': False, 'error': 'forbidden'}, 403
+    progress = elearning_progress_for(pkg.id, me().id)
+    now = local_now()
+    if not progress:
+        progress = ELearningProgress(package_id=pkg.id, student_id=me().id,
+                                     status='started', opened_at=now, last_seen_at=now)
+        db.session.add(progress)
+    try:
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            raw = request.get_data(as_text=True) or '{}'
+            data = json.loads(raw)
+        _apply_scorm_tracking(progress, data)
+        db.session.commit()
+        return {'ok': True, 'state': _scorm_progress_payload(progress, me())}
+    except Exception as e:
+        db.session.rollback()
+        app.logger.exception('SCORM COMMIT FAILED')
+        return {'ok': False, 'error': str(e)[:180]}, 500
+
+
+@app.route('/student/elearning/<int:pid>/complete', methods=['POST'])
+def student_elearning_complete(pid):
+    if not student_only():
+        return redirect(url_for('login'))
+    pkg = db.session.get(ELearningPackage, pid)
+    if not elearning_access_allowed(pkg):
+        return 'Không có quyền', 403
+    progress = elearning_progress_for(pkg.id, me().id)
+    now = local_now()
+    if not progress:
+        progress = ELearningProgress(
+            package_id=pkg.id, student_id=me().id, opened_at=now
+        )
+        db.session.add(progress)
+    progress.status = 'completed'
+    progress.last_seen_at = now
+    progress.completed_at = now
+    db.session.commit()
+    flash('Đã đánh dấu bài eLearning là hoàn thành.', 'ok')
+    return redirect(url_for('student_elearning', pid=pkg.id))
+
+@app.route('/elearning/<int:pid>/launch')
+def elearning_launch(pid):
+    pkg = db.session.get(ELearningPackage, pid)
+    if not elearning_access_allowed(pkg):
+        return 'Không có quyền', 403
+    entry = quote(pkg.entrypoint, safe='/')
+    return redirect(f'/elearning/{pkg.id}/content/{entry}')
+
+@app.route('/elearning/<int:pid>/content/<path:asset_path>')
+def elearning_content(pid, asset_path):
+    pkg = db.session.get(ELearningPackage, pid)
+    if not elearning_access_allowed(pkg):
+        return 'Không có quyền', 403
+
+    safe = _safe_zip_member_name(asset_path)
+    if not safe:
+        return 'Đường dẫn không hợp lệ', 400
+
+    try:
+        cache_dir = ensure_elearning_extracted(pkg)
+    except Exception as e:
+        app.logger.exception('ELEARNING EXTRACT FAILED')
+        return 'Không thể mở gói eLearning: ' + str(e)[:180], 500
+
+    root_real = os.path.realpath(cache_dir)
+    target = os.path.realpath(os.path.join(cache_dir, safe))
+    if not (target == root_real or target.startswith(root_real + os.sep)):
+        return 'Đường dẫn không hợp lệ', 400
+    if not os.path.isfile(target):
+        return 'Không tìm thấy tài nguyên trong bài eLearning.', 404
+
+    mime = mimetypes.guess_type(target)[0] or 'application/octet-stream'
+    # HTML không cache lâu để tránh dùng trang cũ; asset tĩnh có thể cache ngắn.
+    resp = send_file(target, mimetype=mime, as_attachment=False, conditional=True)
+    if mime.startswith('text/html'):
+        resp.headers['Cache-Control'] = 'no-cache'
+    else:
+        resp.headers['Cache-Control'] = 'private, max-age=3600'
+    return resp
 
 @app.route('/student/assignment/<int:assignment_id>/retake', methods=['POST'])
 def retake_assignment(assignment_id):
@@ -3637,6 +4217,45 @@ def run_v8_migrations():
 
         migrations.append((941, migration_941))
 
+        def migration_952():
+            insp12 = inspect(db.engine)
+            if 'e_learning_progress' not in insp12.get_table_names():
+                return
+            cols = {c['name'] for c in insp12.get_columns('e_learning_progress')}
+            defs = [
+                ('scorm_version', 'VARCHAR(20)'),
+                ('lesson_status', 'VARCHAR(30)'),
+                ('completion_status', 'VARCHAR(30)'),
+                ('success_status', 'VARCHAR(30)'),
+                ('score_raw', 'FLOAT'),
+                ('score_min', 'FLOAT'),
+                ('score_max', 'FLOAT'),
+                ('score_scaled', 'FLOAT'),
+                ('lesson_location', 'TEXT'),
+                ('suspend_data', 'TEXT'),
+                ('session_time', 'VARCHAR(80)'),
+                ('total_time', 'VARCHAR(80)'),
+                ('exit_value', 'VARCHAR(40)'),
+                ('entry_value', 'VARCHAR(40)'),
+                ('scorm_data', 'TEXT'),
+            ]
+            for col, typ in defs:
+                if col not in cols:
+                    db.session.execute(text(f'ALTER TABLE e_learning_progress ADD COLUMN {col} {typ}'))
+            db.session.execute(text("UPDATE e_learning_progress SET scorm_data='{}' WHERE scorm_data IS NULL"))
+            db.session.execute(text("UPDATE e_learning_progress SET lesson_status='' WHERE lesson_status IS NULL"))
+            db.session.execute(text("UPDATE e_learning_progress SET completion_status='' WHERE completion_status IS NULL"))
+            db.session.execute(text("UPDATE e_learning_progress SET success_status='' WHERE success_status IS NULL"))
+            db.session.execute(text("UPDATE e_learning_progress SET lesson_location='' WHERE lesson_location IS NULL"))
+            db.session.execute(text("UPDATE e_learning_progress SET suspend_data='' WHERE suspend_data IS NULL"))
+            db.session.execute(text("UPDATE e_learning_progress SET session_time='' WHERE session_time IS NULL"))
+            db.session.execute(text("UPDATE e_learning_progress SET total_time='' WHERE total_time IS NULL"))
+            db.session.execute(text("UPDATE e_learning_progress SET exit_value='' WHERE exit_value IS NULL"))
+            db.session.execute(text("UPDATE e_learning_progress SET entry_value='' WHERE entry_value IS NULL"))
+            db.session.execute(text("UPDATE e_learning_progress SET scorm_version='' WHERE scorm_version IS NULL"))
+
+        migrations.append((952, migration_952))
+
         for version, fn in migrations:
             if version in done:
                 continue
@@ -3736,7 +4355,7 @@ with app.app_context():
 def health():
     return {
         'status': 'ok',
-        'version': '9.3.5-omml-safe-delete-all',
+        'version': '9.5.3-scorm-tracking',
         'timezone': APP_TIMEZONE,
         'database': 'postgresql' if str(app.config['SQLALCHEMY_DATABASE_URI']).startswith('postgresql') else 'sqlite'
     }, 200
@@ -3745,7 +4364,7 @@ def health():
 def ready():
     try:
         db.session.execute(text('SELECT 1'))
-        return {'status': 'ready', 'version': '9.3.5-omml-safe-delete-all'}, 200
+        return {'status': 'ready', 'version': '9.5.3-scorm-tracking'}, 200
     except Exception as e:
         db.session.rollback()
         return {'status': 'not-ready', 'error': str(e)[:160]}, 503

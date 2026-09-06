@@ -1,0 +1,19 @@
+V9.3.6 - TÍCH CHỌN VÀ XÓA NHIỀU CÂU HỎI
+
+Đã thêm:
+- Ô checkbox bên trái từng câu hỏi.
+- Chọn tất cả câu đang hiển thị trên trang.
+- Hiển thị số câu đã chọn.
+- Nút XÓA CÂU ĐÃ CHỌN.
+- Nút Bỏ chọn.
+- Xác nhận trước khi xóa.
+
+An toàn dữ liệu:
+- Câu chưa dùng: xóa thật.
+- Câu đã nằm trong đề hoặc kết quả học sinh: chỉ ẩn khỏi ngân hàng.
+- Chỉ xử lý câu thuộc tài khoản giáo viên đang đăng nhập.
+
+Vẫn giữ:
+- Xóa từng câu.
+- Xóa hết danh sách với xác nhận XOA HET.
+- Tối ưu Word Equation OMML từ V9.3.5.

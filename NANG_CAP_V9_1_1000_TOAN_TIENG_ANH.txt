@@ -1,0 +1,17 @@
+LỚP HỌC ONLINE V9.1 - 1.000 CÂU TOÁN TIẾNG ANH
+
+- Thêm môn "Toán tiếng Anh".
+- Thêm ngân hàng 1.000 câu lớp 6–9.
+- 250 câu mỗi khối.
+- Mỗi khối:
+  + 200 câu A/B/C/D tự chấm
+  + 40 câu trả lời ngắn tự chấm
+  + 10 câu tự luận
+- Có mức Dễ / Trung bình / Khó.
+- Nội dung câu hỏi bằng tiếng Anh.
+- Tạo đề tự động theo subject="Toán tiếng Anh" nên không trộn với Toán tiếng Việt hoặc Tin học.
+- Có nút "+ NẠP 1.000 CÂU TOÁN TIẾNG ANH" trong Ngân hàng câu hỏi.
+- Không cần xóa Supabase.
+
+Lưu ý:
+Đây là ngân hàng khởi đầu do hệ thống tạo. Giáo viên nên rà soát nội dung và độ khó trước khi dùng cho bài kiểm tra chính thức.

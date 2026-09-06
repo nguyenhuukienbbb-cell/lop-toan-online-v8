@@ -1,0 +1,24 @@
+V9.1.5 - SỬA LỖI /admin/teachers INTERNAL SERVER ERROR
+
+Nguyên nhân dự kiến/đã được xử lý:
+- Database cũ có thể chưa có đủ 6 cột phân quyền giáo viên:
+  perm_classes
+  perm_students
+  perm_question_bank
+  perm_assignments
+  perm_lessons
+  perm_grades
+- Model Python đã đọc các cột này nên trang /admin/teachers có thể lỗi 500.
+
+Đã sửa:
+- Khi mở /admin/teachers, hệ thống tự kiểm tra và thêm cột còn thiếu.
+- Giáo viên/Admin cũ mặc định giữ toàn bộ quyền.
+- Học sinh mặc định không có các quyền giáo viên.
+- Khi tạo giáo viên có lỗi database, hệ thống hiện thông báo thay vì trang 500.
+- Không xóa database, không xóa học sinh, lớp, đề, điểm hay ngân hàng câu hỏi.
+
+Cập nhật:
+1. Thay app.py bằng app.py V9.1.5.
+2. Tắt Flask.
+3. Chạy lại Flask.
+4. Đăng nhập Admin và vào lại mục Giáo viên.

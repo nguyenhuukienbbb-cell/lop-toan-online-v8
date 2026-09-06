@@ -1,0 +1,7 @@
+V9.4.6 - THU GỌN KHUNG XÓA VĨNH VIỄN
+
+- Khung không còn bị kéo cao bằng cột bên trái.
+- Giảm padding, khoảng cách, chiều cao input/select.
+- Cảnh báo và xác nhận gọn hơn.
+- Nút đổi thành “XÓA VĨNH VIỄN” nhỏ gọn.
+- Không thay đổi chức năng lọc/xóa.

@@ -1,0 +1,9 @@
+V9.3.1 - GIAO DIỆN DỄ SỬ DỤNG
+
+Không thay đổi chức năng và dữ liệu.
+- Menu gọn hơn, chia nhóm rõ ràng.
+- Chữ và nút lớn, dễ bấm.
+- Kho đề chuyển thành 3 bước: Thêm đề -> Tìm đề -> Dùng đề.
+- Các trường ít dùng được thu gọn trong “Thông tin thêm”.
+- Mỗi đề chỉ hiện các nút chính: Xem, Tải, Tạo bài kiểm tra, Xóa.
+- Tương thích điện thoại và máy tính.

@@ -1,0 +1,17 @@
+BẢN V9.0.1 - SỬA INTERNAL SERVER ERROR /teacher
+
+Nguyên nhân:
+- base.html dùng hàm has_perm() để ẩn/hiện menu theo quyền giáo viên.
+- context processor của Flask chưa truyền has_perm vào Jinja.
+- Khi mở /teacher, Jinja báo UndefinedError và Flask trả HTTP 500.
+
+Đã sửa:
+- Thêm 'has_perm': has_perm vào context processor.
+- Menu Bài kiểm tra cũng tuân theo quyền assignments.
+- Không thay đổi dữ liệu.
+- Không cần xóa SQLite hoặc Supabase.
+
+Cập nhật nhanh:
+1. Thay app.py bằng file app.py của V9.0.1.
+2. Thay templates/base.html.
+3. Dừng chương trình Flask và chạy lại.

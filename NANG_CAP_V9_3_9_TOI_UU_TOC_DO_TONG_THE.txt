@@ -1,0 +1,29 @@
+V9.3.9 - TỐI ƯU TỐC ĐỘ TỔNG THỂ
+
+Bản này gộp toàn bộ tối ưu của V9.3.7 + V9.3.8.
+
+1. Import Word nhanh hơn
+- Upload ảnh câu hỏi lên Supabase song song tối đa 5 luồng.
+- PNG dùng compress_level=3 để giảm CPU nhưng giữ nguyên chất lượng công thức.
+- Nút upload hiện trạng thái đang xử lý để tránh bấm lặp.
+
+2. Xóa câu hỏi nhanh hơn
+- Xóa các câu đã tích chọn bằng truy vấn theo lô.
+- Xóa toàn bộ danh sách bằng truy vấn theo lô.
+- Câu đang dùng trong đề/kết quả chỉ được ẩn để bảo toàn dữ liệu.
+
+3. Soạn đề nhanh hơn
+- Câu trong đề lấy bằng 1 JOIN query.
+- Ngân hàng chỉ tải tối đa 40 câu/lần.
+- Không tải ảnh/công thức ngay khi mở trang.
+- Chỉ tải ảnh khi bấm Xem hình/công thức.
+- Nội dung ngân hàng dùng chế độ xem nhanh.
+
+4. Giữ nguyên các chức năng trước
+- OMML Word Equation
+- Checkbox chọn nhiều câu rồi xóa
+- Kho đề lưu trữ
+- Render nguyên câu
+- Supabase Storage
+
+Khuyến nghị cập nhật toàn bộ source để tránh lệch template/app.py.
