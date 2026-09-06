@@ -2233,7 +2233,7 @@ def question_bank():
     try: page = max(1, int(request.args.get('page', '1')))
     except: page = 1
     per_page = 100
-    query = BankQuestion.query.filter_by(owner_id=me().id)
+    query = BankQuestion.query.filter_by(owner_id=me().id, is_archived=False)
     if subject: query = query.filter(BankQuestion.subject == subject)
     if grade: query = query.filter(BankQuestion.grade == grade)
     if qtype: query = query.filter(BankQuestion.qtype == qtype)
@@ -2245,8 +2245,10 @@ def question_bank():
     qs = query.order_by(BankQuestion.id.desc()).offset((page-1)*per_page).limit(per_page).all()
     topic_rows = db.session.query(BankQuestion.topic).filter_by(owner_id=me().id).distinct().order_by(BankQuestion.topic).all()
     topics = [x[0] for x in topic_rows if x[0]]
+    assignment_choices = Assignment.query.filter_by(created_by=me().id).order_by(Assignment.id.desc()).limit(100).all()
     return render_template('question_bank.html', questions=qs, total=total, page=page, per_page=per_page,
-                           filter_subject=subject, filter_grade=grade, filter_qtype=qtype, filter_difficulty=difficulty, filter_domain=domain, filter_topic=topic, filter_search=search, topics=topics)
+                           filter_subject=subject, filter_grade=grade, filter_qtype=qtype, filter_difficulty=difficulty, filter_domain=domain, filter_topic=topic, filter_search=search, topics=topics,
+                           assignment_choices=assignment_choices)
 
 
 
@@ -2550,6 +2552,86 @@ def delete_bank_question(qid):
             db.session.delete(q)
             db.session.commit()
             flash('Đã xóa câu hỏi.', 'ok')
+    return redirect(url_for('question_bank'))
+
+
+@app.route('/teacher/question-bank/add-selected-to-assignment', methods=['POST'])
+def add_selected_bank_questions_to_assignment():
+    """Thêm các câu đã tích trong Ngân hàng vào một bài kiểm tra."""
+    if not require_perm('question_bank') or not require_perm('assignments'):
+        flash('Bạn chưa được cấp quyền Ngân hàng câu hỏi hoặc Bài kiểm tra.', 'error')
+        return redirect(url_for('teacher_dashboard'))
+    if not teacher_only():
+        return redirect(url_for('login'))
+
+    try:
+        assignment_id = int(request.form.get('assignment_id', '0') or 0)
+    except Exception:
+        assignment_id = 0
+
+    assignment = db.session.get(Assignment, assignment_id)
+    if not assignment or assignment.created_by != me().id:
+        flash('Hãy chọn một bài kiểm tra hợp lệ.', 'error')
+        return redirect(request.referrer or url_for('question_bank'))
+
+    ids = []
+    for raw in request.form.getlist('q_ids'):
+        try:
+            qid = int(raw)
+            if qid > 0 and qid not in ids:
+                ids.append(qid)
+        except Exception:
+            pass
+
+    if not ids:
+        flash('Bạn chưa tích chọn câu hỏi nào.', 'error')
+        return redirect(request.referrer or url_for('question_bank'))
+
+    # Chỉ nhận câu của giáo viên hiện tại và chưa bị ẩn.
+    owned_ids = {
+        row[0] for row in db.session.query(BankQuestion.id).filter(
+            BankQuestion.owner_id == me().id,
+            BankQuestion.is_archived == False,
+            BankQuestion.id.in_(ids)
+        ).all()
+    }
+    if not owned_ids:
+        flash('Không có câu hỏi hợp lệ để thêm.', 'error')
+        return redirect(request.referrer or url_for('question_bank'))
+
+    existing = {
+        row[0] for row in db.session.query(AssignmentQuestion.question_id).filter(
+            AssignmentQuestion.assignment_id == assignment.id,
+            AssignmentQuestion.question_id.in_(owned_ids)
+        ).all()
+    }
+
+    order = db.session.query(db.func.max(AssignmentQuestion.order_no)).filter(
+        AssignmentQuestion.assignment_id == assignment.id
+    ).scalar() or 0
+
+    added = 0
+    for qid in ids:
+        if qid in owned_ids and qid not in existing:
+            order += 1
+            db.session.add(AssignmentQuestion(
+                assignment_id=assignment.id,
+                question_id=qid,
+                order_no=order
+            ))
+            added += 1
+
+    db.session.commit()
+    skipped = len(owned_ids) - added
+    flash(
+        f'Đã thêm {added} câu vào bài “{assignment.title}”. '
+        f'Bỏ qua {skipped} câu đã có sẵn trong bài.',
+        'ok'
+    )
+
+    return_url = (request.form.get('return_url') or '').strip()
+    if return_url.startswith('/'):
+        return redirect(return_url)
     return redirect(url_for('question_bank'))
 
 

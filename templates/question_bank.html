@@ -1,4 +1,80 @@
-{% extends 'base.html' %}{% block heading %}Ngân hàng câu hỏi{% endblock %}{% block content %}
+{% extends 'base.html' %}{% block heading %}Ngân hàng câu hỏi
+<script>
+function toggleAllQuestionPanels(openIt){
+  document.querySelectorAll('.qb-accordion').forEach(function(x){
+    if(openIt){ x.setAttribute('open',''); } else { x.removeAttribute('open'); }
+  });
+}
+</script>
+
+{% endblock %}{% block content %}
+
+<style>
+.qb-mini-panel{border:1px solid #dbe3ef;border-radius:8px;background:#fff;margin-bottom:7px;overflow:hidden}
+.qb-mini-panel summary{cursor:pointer;padding:8px 10px;font-weight:800;font-size:13px;background:#f8fafc;list-style:none}
+.qb-mini-panel summary::-webkit-details-marker{display:none}
+.qb-mini-panel summary::after{content:"▾";float:right;color:#64748b}
+.qb-mini-panel[open] summary::after{content:"▴"}
+.qb-mini-body{padding:8px 10px}
+.qb-mini-body h3{display:none}
+.qb-mini-body input,.qb-mini-body select,.qb-mini-body textarea{margin:2px 0 5px;padding:5px 7px;font-size:12px}
+.qb-mini-body label{font-size:12px}
+.qb-mini-body textarea{min-height:48px}
+.qb-mini-body button{padding:6px 9px;font-size:12px}
+</style>
+
+
+<style>
+.qb-accordion{margin-bottom:7px;border-radius:8px}
+.qb-accordion summary{padding:8px 10px;font-size:14px;min-height:36px}
+.qb-accordion .qb-body{padding:8px 10px}
+.qb-accordion input,.qb-accordion select,.qb-accordion textarea{margin:2px 0 5px;padding:5px 7px;font-size:13px}
+.qb-accordion label{font-size:12px}
+.qb-accordion .muted{font-size:12px;line-height:1.35}
+.qb-accordion button,.qb-accordion .btn{padding:6px 9px;font-size:12px}
+.qb-accordion h3{font-size:15px;margin:0 0 6px}
+.qb-accordion p{margin:4px 0 7px}
+.qb-accordion .grid2{gap:6px}
+.qb-quicknav{gap:5px}
+.qb-quicknav a{padding:6px 8px;font-size:12px}
+.qb-list-mini .q{padding:8px 0}
+.qb-list-mini .badge{font-size:10px;padding:3px 6px}
+.qb-list-mini .mathtext{line-height:1.45;font-size:13px}
+</style>
+
+
+<style>
+.qb-accordion{border:1px solid #dbe3ef;border-radius:10px;background:#fff;margin-bottom:10px;overflow:hidden}
+.qb-accordion summary{list-style:none;cursor:pointer;padding:11px 14px;font-weight:800;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f8fafc}
+.qb-accordion summary::-webkit-details-marker{display:none}
+.qb-accordion summary::after{content:"▾";font-size:14px;color:#64748b}
+.qb-accordion[open] summary::after{content:"▴"}
+.qb-accordion .qb-body{padding:12px 14px}
+.qb-accordion .grid2{gap:8px}
+.qb-accordion input,.qb-accordion select,.qb-accordion textarea{margin:3px 0 7px;padding:7px 9px}
+.qb-accordion label{font-size:13px}
+.qb-accordion .muted{font-size:13px}
+.qb-sticky-actions{position:sticky;top:66px;z-index:4;background:#f5f7fb;padding:6px 0 8px}
+.qb-quicknav{display:flex;gap:7px;flex-wrap:wrap}
+.qb-quicknav a{font-size:13px;padding:8px 10px}
+@media(max-width:700px){.qb-accordion .qb-body{padding:10px}.qb-quicknav a{flex:1;text-align:center}}
+</style>
+
+<style>
+.compact-card{padding:12px 14px!important;align-self:start}
+.compact-card h3{font-size:16px;margin:0 0 6px}
+.compact-card p{margin:5px 0 8px;line-height:1.35}
+.compact-card label{display:block;font-size:13px;margin:5px 0 2px}
+.compact-card input,.compact-card select,.compact-card textarea{padding:7px 9px;margin:2px 0 6px;font-size:13px;border-radius:6px}
+.compact-card textarea{min-height:54px;resize:vertical}
+.compact-card input[type=file]{padding:5px 7px}
+.compact-card .btn,.compact-card button{padding:7px 10px;font-size:12px;border-radius:6px}
+.compact-card .grid2{gap:6px 10px}
+.compact-card small{font-size:11px;display:block;margin:-2px 0 4px}
+.compact-card .form-note{font-size:12px;line-height:1.35}
+@media(max-width:700px){.compact-card .grid2{grid-template-columns:1fr 1fr}}
+</style>
+
 <div class="card" style="border:2px solid #2563eb">
   <h3>📚 Ngân hàng 1.000 câu Toán lớp 6–9</h3>
   <p class="muted">Gồm 250 câu mỗi khối. Có trắc nghiệm A/B/C/D, trả lời ngắn và tự luận; các câu khách quan có đáp án để hệ thống tự chấm.</p>
@@ -8,7 +84,7 @@
   <small class="muted">Có thể bấm lại an toàn: hệ thống bỏ qua các câu thuộc gói đã nạp trước đó.</small>
 </div>
 
-<div class="card" style="border:2px solid #2563eb">
+<details class="qb-accordion" id="xoa-vinh-vien"><summary><span>🧹 Xóa vĩnh viễn theo bộ lọc</span></summary><div class="qb-body">
   <h3>🇬🇧 Ngân hàng 1.000 câu Toán tiếng Anh lớp 6–9</h3>
   <p class="muted">250 câu mỗi khối, gồm trắc nghiệm A/B/C/D, trả lời ngắn và tự luận. Nội dung câu hỏi bằng tiếng Anh.</p>
   <form method="post" action="/teacher/question-bank/load-math-english-1000" onsubmit="return confirm('Nạp 1.000 câu Toán tiếng Anh vào ngân hàng?')">
@@ -18,17 +94,17 @@
     <button class="orange">🛠 PHÂN LOẠI LẠI ĐẠI SỐ / HÌNH HỌC</button>
   </form>
   <small class="muted">Dùng nút này nếu đã nạp Toán tiếng Anh từ bản cũ.</small>
-</div>
-<div class="card" style="border:2px solid #16a34a">
+</div></details>
+<details class="qb-accordion" id="them-cau"><summary><span>➕ Thêm câu hỏi thủ công</span></summary><div class="qb-body">
   <h3>💻 Ngân hàng 1.000 câu Tin học lớp 6–9</h3>
   <p class="muted">250 câu mỗi khối; gồm trắc nghiệm, trả lời ngắn và tự luận. Chia theo Máy tính & mạng, Dữ liệu & ứng dụng, Thuật toán & lập trình, An toàn số.</p>
   <form method="post" action="/teacher/question-bank/load-it-1000" onsubmit="return confirm('Nạp ngân hàng 1.000 câu Tin học vào tài khoản giáo viên này?')">
     <button class="green big-action">+ NẠP 1.000 CÂU TIN HỌC</button>
   </form>
   <small class="muted">Bấm lại an toàn: hệ thống bỏ qua gói đã nạp trước đó.</small>
-</div>
+</div></details>
 
-<div class="card">
+<details class="qb-accordion" id="nhap-word"><summary><span>📄 Nhập từ Word</span></summary><div class="qb-body">
   <h3>Lọc ngân hàng</h3>
   <form method="get" class="grid2">
     <div><label>Môn học</label><select name="subject"><option value="">Tất cả</option><option value="Toán" {% if filter_subject=="Toán" %}selected{% endif %}>Toán</option><option value="Tin học" {% if filter_subject=="Tin học" %}selected{% endif %}>Tin học</option><option value="Toán tiếng Anh" {% if filter_subject=="Toán tiếng Anh" %}selected{% endif %}>Toán tiếng Anh</option></select><label>Khối</label><select name="grade"><option value="">Tất cả</option>{% for g in ['6','7','8','9'] %}<option value="{{g}}" {% if filter_grade==g %}selected{% endif %}>Lớp {{g}}</option>{% endfor %}</select></div>
@@ -38,17 +114,17 @@
     <div><label>Tìm nội dung</label><input name="search" value="{{filter_search}}" placeholder="Nhập từ khóa"></div>
     <div><button>Lọc câu hỏi</button> <a class="btn" href="/teacher/question-bank">Xóa bộ lọc</a></div>
   </form>
-</div>
+</div></details>
 
 <div class="grid2"><div>
-<div class="card"><h3>Nhập từ Word</h3><p class="muted">Hỗ trợ A/B/C/D, Đúng/Sai, trả lời ngắn, tự luận, ảnh, hình minh họa và công thức Word.</p><p><a class="btn green" href="/teacher/word-template">⬇ TẢI MẪU WORD CHUẨN</a></p><p class="muted">Tải mẫu → thay nội dung câu hỏi → giữ nguyên các dòng Câu, A/B/C/D, Đáp án, Loại và Điểm → upload lại tại đây. Mặc định phần mềm sẽ giữ nguyên bố cục Word bằng ảnh render từng câu, nên bạn không cần thao tác thêm.</p><form method="post" action="/teacher/question-bank/upload-word" enctype="multipart/form-data" onsubmit="const b=this.querySelector('button[type=submit],button:not([type])'); if(b){b.disabled=true;b.textContent='⏳ Đang đọc công thức và xử lý đề... Vui lòng chờ';}"><label>Môn học</label><select name="subject"><option>Toán</option><option>Tin học</option><option>Toán tiếng Anh</option></select><label>Khối</label><input name="grade" placeholder="6"><label>Chủ đề</label><input name="topic" placeholder="Phân số"><label>Mức độ mặc định</label><select name="difficulty"><option>Dễ</option><option selected>Trung bình</option><option>Khó</option></select><label>Phân môn</label><select name="domain"><option selected>Đại số</option><option>Hình học</option></select><input type="file" name="word_file" accept=".docx" required><button>Upload Word</button></form></div>
-<div class="card"><h3>Thêm câu hỏi</h3><form method="post" enctype="multipart/form-data" onsubmit="const b=this.querySelector('button[type=submit],button:not([type])'); if(b){b.disabled=true;b.textContent='⏳ Đang đọc công thức và xử lý đề... Vui lòng chờ';}"><label>Môn học</label><select name="subject"><option>Toán</option><option>Tin học</option><option>Toán tiếng Anh</option></select><div class="grid2"><div><label>Khối</label><input name="grade"></div><div><label>Chủ đề</label><input name="topic"></div><div><label>Mức độ</label><select name="difficulty"><option>Dễ</option><option selected>Trung bình</option><option>Khó</option></select></div><div><label>Phân môn</label><select name="domain"><option selected>Đại số</option><option>Hình học</option></select></div></div><label>Loại</label><select name="qtype"><option value="mcq">Trắc nghiệm</option><option value="short">Trả lời ngắn</option><option value="essay">Tự luận</option></select><label>Nội dung</label><textarea name="content" required placeholder="Có thể nhập công thức: $\\frac{1}{2}+\\frac{1}{3}$"></textarea><label>Ảnh minh họa (tùy chọn)</label><input type="file" name="image_file" accept="image/*"><input name="option_a" placeholder="A"><input name="option_b" placeholder="B"><input name="option_c" placeholder="C"><input name="option_d" placeholder="D"><label>Đáp án đúng</label><select name="correct_answer"><option value=""></option><option>A</option><option>B</option><option>C</option><option>D</option></select><label>Trọng số câu hỏi</label><input type="number" step="0.25" name="points" value="1"><small class="muted">Hệ thống tự quy đổi trọng số về thang điểm của đề.</small><label>Lời giải</label><textarea name="explanation"></textarea><button>Thêm câu hỏi</button></form></div></div>
+<div class="card compact-card"><h3>Nhập từ Word</h3><p class="muted">Hỗ trợ A/B/C/D, Đúng/Sai, trả lời ngắn, tự luận, ảnh, hình minh họa và công thức Word.</p><p><a class="btn green" href="/teacher/word-template">⬇ TẢI MẪU WORD CHUẨN</a></p><p class="muted form-note">Tải mẫu → thay nội dung → giữ nguyên Câu/A-B-C-D/Đáp án/Loại/Điểm → upload lại.</p><form method="post" action="/teacher/question-bank/upload-word" enctype="multipart/form-data" onsubmit="const b=this.querySelector('button[type=submit],button:not([type])'); if(b){b.disabled=true;b.textContent='⏳ Đang đọc công thức và xử lý đề... Vui lòng chờ';}"><label>Môn học</label><select name="subject"><option>Toán</option><option>Tin học</option><option>Toán tiếng Anh</option></select><label>Khối</label><input name="grade" placeholder="6"><label>Chủ đề</label><input name="topic" placeholder="Phân số"><label>Mức độ mặc định</label><select name="difficulty"><option>Dễ</option><option selected>Trung bình</option><option>Khó</option></select><label>Phân môn</label><select name="domain"><option selected>Đại số</option><option>Hình học</option></select><input type="file" name="word_file" accept=".docx" required><button>Upload Word</button></form></div>
+<details class="qb-mini-panel" id="them-cau-hoi-thu-cong"><summary>➕ Thêm câu hỏi thủ công</summary><div class="qb-mini-body"><h3>Thêm câu hỏi</h3><form method="post" enctype="multipart/form-data" onsubmit="const b=this.querySelector('button[type=submit],button:not([type])'); if(b){b.disabled=true;b.textContent='⏳ Đang đọc công thức và xử lý đề... Vui lòng chờ';}"><label>Môn học</label><select name="subject"><option>Toán</option><option>Tin học</option><option>Toán tiếng Anh</option></select><div class="grid2"><div><label>Khối</label><input name="grade"></div><div><label>Chủ đề</label><input name="topic"></div><div><label>Mức độ</label><select name="difficulty"><option>Dễ</option><option selected>Trung bình</option><option>Khó</option></select></div><div><label>Phân môn</label><select name="domain"><option selected>Đại số</option><option>Hình học</option></select></div></div><label>Loại</label><select name="qtype"><option value="mcq">Trắc nghiệm</option><option value="short">Trả lời ngắn</option><option value="essay">Tự luận</option></select><label>Nội dung</label><textarea rows="2" name="content" required placeholder="Có thể nhập công thức: $\\frac{1}{2}+\\frac{1}{3}$"></textarea><label>Ảnh minh họa</label><input type="file" name="image_file" accept="image/*"><input name="option_a" placeholder="A"><input name="option_b" placeholder="B"><input name="option_c" placeholder="C"><input name="option_d" placeholder="D"><label>Đáp án đúng</label><select name="correct_answer"><option value=""></option><option>A</option><option>B</option><option>C</option><option>D</option></select><label>Trọng số</label><input type="number" step="0.25" name="points" value="1"><small class="muted">Hệ thống tự quy đổi trọng số về thang điểm của đề.</small><label>Lời giải</label><textarea rows="2" name="explanation"></textarea><button>Thêm câu hỏi</button></form></div></details></div>
 
-<div class="card" style="border:2px solid #dc2626">
-  <h3 style="margin-bottom:6px">🧹 Xóa vĩnh viễn theo bộ lọc</h3>
-  <p class="muted">Chọn phạm vi cần xóa. Hệ thống chỉ xóa các câu khớp bộ lọc bên dưới.</p>
+<div class="card compact-delete-card" style="border:1.5px solid #dc2626;align-self:start;padding:12px 14px">
+  <h3 style="margin:0 0 4px;font-size:16px">🧹 Xóa vĩnh viễn theo bộ lọc</h3>
+  <p class="muted" style="margin:0 0 8px;font-size:13px">Chỉ xóa các câu khớp bộ lọc đã chọn.</p>
 
-  <form method="post" action="/teacher/question-bank/delete-filtered-permanent"
+  <form class="compact-delete-form" method="post" action="/teacher/question-bank/delete-filtered-permanent"
         onsubmit="return confirm('XÓA VĨNH VIỄN các câu hỏi khớp bộ lọc này? Hành động này không thể hoàn tác.');">
     <div class="grid2">
       <div>
@@ -106,11 +182,11 @@
     <label>Từ khóa trong câu hỏi</label>
     <input name="keyword" placeholder="Để trống nếu không cần">
 
-    <div class="notice" style="background:#fff1f2;border-color:#fecdd3">
+    <div class="notice" style="background:#fff1f2;border-color:#fecdd3;padding:8px 10px;margin:4px 0 8px;font-size:12px">
       <b>Cảnh báo:</b> Xóa vĩnh viễn sẽ xóa cả liên kết câu hỏi trong đề và câu trả lời học sinh liên quan đến các câu bị xóa.
     </div>
 
-    <label style="display:flex;gap:8px;align-items:center;margin:10px 0">
+    <label style="display:flex;gap:6px;align-items:center;margin:6px 0;font-size:12px">
       <input type="checkbox" name="confirm_check" value="1" required>
       Tôi hiểu đây là xóa vĩnh viễn và không thể khôi phục.
     </label>
@@ -118,25 +194,49 @@
     <label>Nhập <b>XOA VINH VIEN</b> để xác nhận</label>
     <input name="confirm_text" autocomplete="off" required>
 
-    <button class="red big-action">🗑 XÓA VĨNH VIỄN THEO BỘ LỌC</button>
+    <button class="red" style="padding:8px 11px;font-size:13px">🗑 XÓA VĨNH VIỄN</button>
   </form>
 </div>
 
-<div class="card"><div class="toolbar" style="justify-content:space-between;align-items:flex-start"><div><h3 style="margin-bottom:6px">Danh sách câu hỏi ({{total}})</h3><p class="muted">Tích những câu cần xóa rồi bấm <b>Xóa câu đã chọn</b>.</p></div>{% if total>0 %}<button type="button" class="red" onclick="document.getElementById('deleteAllBox').style.display='block'">🗑 XÓA HẾT DANH SÁCH</button>{% endif %}</div>
+<details class="qb-accordion" id="ds-cau-hoi-accordion"><summary><span>📋 Danh sách câu hỏi ({{total}})</span></summary><div class="qb-body qb-list-mini"><div class="toolbar" style="justify-content:space-between;align-items:flex-start"><div><h3 style="margin-bottom:6px">Danh sách câu hỏi ({{total}})</h3><p class="muted">Dùng bộ lọc của Ngân hàng → tích câu cần dùng → chọn bài kiểm tra → bấm <b>Thêm vào bài tập</b>.</p></div>{% if total>0 %}<button type="button" class="red" onclick="document.getElementById('deleteAllBox').style.display='block'">🗑 XÓA HẾT DANH SÁCH</button>{% endif %}</div>
 {% if questions %}
 <form id="bulkDeleteForm" method="post" action="/teacher/question-bank/delete-selected" onsubmit="return confirmBulkDelete()" style="margin:10px 0 14px">
   <input type="hidden" name="return_url" id="bulkReturnUrl">
   <div class="toolbar" style="padding:10px 12px;background:#f8fafc;border:1px solid #dbe3ef;border-radius:9px;position:sticky;top:68px;z-index:4">
     <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="selectAllQuestions" onchange="toggleAllQuestions(this.checked)"> <b>Chọn tất cả trên trang này</b></label>
     <span class="badge" id="selectedQuestionCount">Đã chọn: 0</span>
+    <select id="targetAssignment" style="width:auto;min-width:220px;margin:0;padding:7px 9px">
+      <option value="">-- Chọn bài kiểm tra --</option>
+      {% for a in assignment_choices %}
+        <option value="{{a.id}}">{{a.title}}</option>
+      {% endfor %}
+    </select>
+    <button type="button" class="green" id="addSelectedBtn" disabled onclick="submitSelectedToAssignment()">➕ THÊM VÀO BÀI TẬP</button>
     <button class="red" id="deleteSelectedBtn" disabled>🗑 XÓA CÂU ĐÃ CHỌN</button>
     <button type="button" class="gray" onclick="clearQuestionSelection()">Bỏ chọn</button>
   </div>
 </form>
+<form id="addToAssignmentForm" method="post" action="/teacher/question-bank/add-selected-to-assignment" style="display:none">
+  <input type="hidden" name="assignment_id" id="addAssignmentId">
+  <input type="hidden" name="return_url" id="addReturnUrl">
+  <div id="addQuestionIds"></div>
+</form>
 {% endif %}
 {% if total>0 %}<div id="deleteAllBox" class="flash error" style="display:none;margin:10px 0 16px"><b>⚠ Xóa toàn bộ danh sách câu hỏi?</b><p style="margin:6px 0">Các câu chưa dùng sẽ bị xóa. Câu đã nằm trong đề hoặc bài làm sẽ chỉ được ẩn để không làm mất đề và kết quả học sinh.</p><form method="post" action="/teacher/question-bank/delete-all" onsubmit="return confirm('Xác nhận lần cuối: làm trống toàn bộ Ngân hàng câu hỏi?')"><label>Nhập <b>XOA HET</b> để xác nhận</label><input name="confirm_text" autocomplete="off" placeholder="XOA HET" required><div class="action-row"><button class="red">Xác nhận xóa hết</button><button type="button" class="gray" onclick="document.getElementById('deleteAllBox').style.display='none'">Hủy</button></div></form></div>{% endif %}{% for q in questions %}<div class="q" style="position:relative;padding-left:42px"><label title="Chọn câu này" style="position:absolute;left:4px;top:17px;cursor:pointer"><input class="question-select" type="checkbox" name="q_ids" value="{{q.id}}" form="bulkDeleteForm" onchange="updateQuestionSelection()" style="width:20px;height:20px"></label><div><span class="badge">{{q.subject or "Toán"}}</span> <span class="badge">Khối {{q.grade}}</span> <span class="badge">{{q.topic}}</span> <span class="badge">{{q.difficulty}}</span> <span class="badge">{{q.domain}}</span> <span class="badge">{{'Trắc nghiệm' if q.qtype=='mcq' else ('Trả lời ngắn' if q.qtype=='short' else 'Tự luận')}}</span> <span class="badge">Trọng số {{q.points}}</span></div><p class="mathtext"><b>{{q.content|rich}}</b></p>{% if q.image_path %}<img class="qimg" src="{{ media_url(q.image_path) }}">{% endif %}{% if q.qtype=='mcq' %}<p class="mathtext">A. {{q.option_a|rich}}<br>B. {{q.option_b|rich}}<br>C. {{q.option_c|rich}}<br>D. {{q.option_d|rich}}<br><b>Đáp án: {{q.correct_answer}}</b></p>{% elif q.qtype=='short' %}<p><b>Đáp án ngắn: {{q.correct_answer}}</b></p>{% endif %}<form method="post" action="/teacher/question/{{q.id}}/delete"><button class="red">Xóa</button></form></div>{% else %}<p>Chưa có câu hỏi phù hợp bộ lọc.</p>{% endfor %}
 {% if total > per_page %}<div style="display:flex;gap:8px;align-items:center;margin-top:16px">{% if page>1 %}<a class="btn" href="?page={{page-1}}&subject={{filter_subject}}&grade={{filter_grade}}&qtype={{filter_qtype}}&difficulty={{filter_difficulty}}&domain={{filter_domain}}&topic={{filter_topic}}&search={{filter_search}}">← Trang trước</a>{% endif %}<span>Trang {{page}} / {{((total-1)//per_page)+1}}</span>{% if page*per_page < total %}<a class="btn" href="?page={{page+1}}&subject={{filter_subject}}&grade={{filter_grade}}&qtype={{filter_qtype}}&difficulty={{filter_difficulty}}&domain={{filter_domain}}&topic={{filter_topic}}&search={{filter_search}}">Trang sau →</a>{% endif %}</div>{% endif %}
-</div></div>
+</div></details></div>
+
+<style>
+.compact-delete-card .grid2{gap:7px 9px}
+.compact-delete-card label{font-size:12px;margin-bottom:1px}
+.compact-delete-card input,
+.compact-delete-card select{padding:7px 8px;margin:3px 0 6px;font-size:13px;border-radius:6px}
+.compact-delete-card .muted{line-height:1.35}
+.compact-delete-form > label{margin-top:2px}
+@media(max-width:900px){
+  .compact-delete-card{width:100%;max-width:none}
+}
+</style>
 <script>
 function getQuestionBoxes(){ return Array.from(document.querySelectorAll('.question-select')); }
 function updateQuestionSelection(){
@@ -147,6 +247,8 @@ function updateQuestionSelection(){
   const all = document.getElementById('selectAllQuestions');
   if(count) count.textContent = 'Đã chọn: ' + checked;
   if(btn) btn.disabled = checked === 0;
+  const addBtn = document.getElementById('addSelectedBtn');
+  if(addBtn) addBtn.disabled = checked === 0;
   if(all){
     all.checked = boxes.length > 0 && checked === boxes.length;
     all.indeterminate = checked > 0 && checked < boxes.length;
@@ -167,6 +269,42 @@ function confirmBulkDelete(){
   if(ret) ret.value = window.location.pathname + window.location.search;
   return confirm('Xóa ' + checked + ' câu đã chọn? Câu đang được dùng trong đề/kết quả cũ sẽ chỉ được ẩn để không mất dữ liệu.');
 }
+
+function submitSelectedToAssignment(){
+  const checked = getQuestionBoxes().filter(x => x.checked);
+  if(!checked.length){
+    alert('Bạn chưa tích chọn câu hỏi nào.');
+    return;
+  }
+  const target = document.getElementById('targetAssignment');
+  if(!target || !target.value){
+    alert('Hãy chọn bài kiểm tra muốn thêm câu hỏi vào.');
+    return;
+  }
+
+  const form = document.getElementById('addToAssignmentForm');
+  const box = document.getElementById('addQuestionIds');
+  const aid = document.getElementById('addAssignmentId');
+  const ret = document.getElementById('addReturnUrl');
+
+  box.innerHTML = '';
+  checked.forEach(function(cb){
+    const h = document.createElement('input');
+    h.type = 'hidden';
+    h.name = 'q_ids';
+    h.value = cb.value;
+    box.appendChild(h);
+  });
+
+  aid.value = target.value;
+  ret.value = window.location.pathname + window.location.search;
+
+  const name = target.options[target.selectedIndex].text;
+  if(confirm('Thêm ' + checked.length + ' câu đã chọn vào bài “' + name + '”?')){
+    form.submit();
+  }
+}
+
 document.addEventListener('DOMContentLoaded', updateQuestionSelection);
 </script>
 {% endblock %}
